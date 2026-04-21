@@ -1,6 +1,6 @@
 {
   "name": "juv-ksip-softphone",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "A React WebRTC SIP softphone component for FreePBX/Asterisk with audio and video call support",
   "type": "module",
   "main": "./dist/juv-ksip-softphone.umd.cjs",
@@ -26,7 +26,7 @@
     "video-call",
     "audio-call"
   ],
-  "author": "juv",
+  "author": "Kenneth H. Gimpao",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
@@ -45,6 +45,10 @@
     "lucide-react": {
       "optional": true
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kitenebie/SoftPhone-FreePBX.git"
   },
   "dependencies": {
     "lucide-react": "^0.525.0",

@@ -2,17 +2,57 @@
 
 A professional, draggable, resizable, transparent React WebRTC SIP softphone component for FreePBX / Asterisk. Supports audio and video calls, incoming call handling, codec selection, and a global `ksipcall` API for triggering calls from anywhere in your app.
 
+**Author:** Kenneth H. Gimpao
+---
+**Published:**  April 21, 2026
+
+---
+
+## What is this?
+
+`juv-ksip-softphone` is a **React-based WebRTC SIP softphone** designed to be dropped into any existing web application as a transparent floating overlay. It connects to a **FreePBX / Asterisk PBX server** using the SIP protocol over WebSocket (`ws://` or `wss://`) and enables real-time **audio and video calling** directly from the browser — no plugins, no downloads required.
+
+### What is it for?
+
+This component is built for developers who need to add **VoIP calling capabilities** to their existing React web applications without rebuilding their UI from scratch. Common use cases include:
+
+- **Call center dashboards** — agents can make and receive calls directly from their browser-based CRM or ticketing system
+- **Customer support portals** — embed a softphone into a helpdesk app so support staff can call customers with one click
+- **Dispatch and operations systems** — field coordinators can communicate via audio/video without switching applications
+- **Healthcare platforms** — doctors and staff can conduct audio/video consultations from within a patient management system
+- **Any web app that needs calling** — simply drop `<Softphone />` into your app and it floats transparently on top
+
+### How does it work?
+
+1. **SIP over WebSocket** — The component connects to your FreePBX/Asterisk server via a WebSocket connection (`ws://` or `wss://`). FreePBX listens on port `8088` (ws) or `8089` (wss) for WebSocket SIP traffic.
+
+2. **WebRTC for media** — Once a call is established, the browser uses WebRTC (built into all modern browsers) to handle the actual audio and video streams. This means no additional software is needed — the browser handles microphone, camera, and speaker access natively.
+
+3. **SIP registration** — On connect, the component registers your extension with the PBX just like a physical desk phone would. Once registered, you can make outgoing calls and receive incoming calls.
+
+4. **Transparent overlay** — The softphone renders as a `position: fixed` transparent layer on top of your existing app. Your app's UI is completely unaffected — the softphone simply floats above it.
+
+5. **Global `ksipcall` API** — A global `window.ksipcall` object is exposed so you can trigger calls from anywhere in your codebase — even from plain JavaScript, Vue, Angular, or any other framework running on the same page.
+
+```
+Browser  ──WebSocket──▶  FreePBX/Asterisk  ──SIP──▶  Other Phone/Extension
+           (SIP/WS)           (PBX)                    (IP Phone, Softphone)
+
+Browser  ◀──WebRTC──▶  FreePBX/Asterisk  ◀──RTP──▶  Other Phone/Extension
+           (Audio/Video)      (Media)                  (Audio/Video Stream)
+```
+
 ---
 
 ## Screenshots
 
 <p align="center">
-  <img src="src/assets/image_1.png" width="48%" alt="Softphone Settings Panel" />
-  <img src="src/assets/image_2.png" width="48%" alt="Incoming Call" />
+  <img src="https://raw.githubusercontent.com/kitenebie/SoftPhone-FreePBX/main/src/assets/image_1.png" width="48%" alt="Softphone Settings Panel" />
+  <img src="https://raw.githubusercontent.com/kitenebie/SoftPhone-FreePBX/main/src/assets/image_2.png" width="48%" alt="Incoming Call" />
 </p>
 <p align="center">
-  <img src="src/assets/image_3.png" width="48%" alt="Video Call" />
-  <img src="src/assets/image_4.png" width="48%" alt="Dialer Panel" />
+  <img src="https://raw.githubusercontent.com/kitenebie/SoftPhone-FreePBX/main/src/assets/image_3.png" width="48%" alt="Video Call" />
+  <img src="https://raw.githubusercontent.com/kitenebie/SoftPhone-FreePBX/main/src/assets/image_4.png" width="48%" alt="Dialer Panel" />
 </p>
 
 ---
@@ -38,7 +78,7 @@ A professional, draggable, resizable, transparent React WebRTC SIP softphone com
 ## Installation
 
 ```bash
-npm install react-sip-softphone
+npm install juv-ksip-softphone
 ```
 
 ---
@@ -46,8 +86,8 @@ npm install react-sip-softphone
 ## Quick Start
 
 ```jsx
-import { Softphone } from 'react-sip-softphone';
-import 'react-sip-softphone/styles';
+import { Softphone } from 'juv-ksip-softphone';
+import 'juv-ksip-softphone/styles';
 
 function App() {
   return (
@@ -195,7 +235,7 @@ ksipcall.video("123");
 ### Import in React / other frameworks
 
 ```js
-import { ksipcall } from 'react-sip-softphone';
+import { ksipcall } from 'juv-ksip-softphone';
 
 ksipcall.audio("123");
 ksipcall.video("123");
@@ -203,60 +243,6 @@ ksipcall.video("123");
 
 ---
 
-## useSIP Hook (Advanced)
-
-Use the hook directly if you want to build your own UI:
-
-```jsx
-import { useSIP } from 'react-sip-softphone';
-
-function MyPhone() {
-  const {
-    registered,       // boolean — SIP registration status
-    callState,        // "idle" | "ringing" | "incoming" | "active"
-    incomingSession,  // sip.js Invitation object
-    error,            // string | null
-    reconnecting,     // boolean
-    localVideoRef,    // ref → attach to <video> for local camera
-    remoteVideoRef,   // ref → attach to <video> for remote video
-    remoteAudioRef,   // ref → attach to <audio> for remote audio
-    call,             // (target: string, withVideo?: boolean) => void
-    answer,           // (withVideo?: boolean) => void
-    hangup,           // () => void
-    mute,             // (muted: boolean) => void
-    toggleVideo,      // (disabled: boolean) => void
-  } = useSIP({
-    server: "192.168.1.100",
-    wsServer: "ws://192.168.1.100:8088/ws",
-    extension: "1001",
-    password: "secret",
-    displayName: "John Doe",
-  });
-
-  return (
-    <>
-      <audio ref={remoteAudioRef} autoPlay />
-      <video ref={remoteVideoRef} autoPlay playsInline />
-      <video ref={localVideoRef} autoPlay playsInline muted />
-      <p>Status: {registered ? "Registered" : "Not registered"}</p>
-      <button onClick={() => call("1002")}>Call 1002</button>
-      <button onClick={() => call("1002", true)}>Video Call 1002</button>
-      {callState === "incoming" && (
-        <>
-          <button onClick={() => answer()}>Answer Audio</button>
-          <button onClick={() => answer(true)}>Answer Video</button>
-          <button onClick={hangup}>Reject</button>
-        </>
-      )}
-      {callState === "active" && (
-        <button onClick={hangup}>Hang Up</button>
-      )}
-    </>
-  );
-}
-```
-
----
 
 ## Settings Panel
 
@@ -357,6 +343,8 @@ Config is automatically saved under the key `sip_softphone_config` and restored 
 - Selected audio/video codecs
 - UI preferences (all toggle states)
 
+> `enabledBubble` and `showSetting` are **never saved** to localStorage — they are always controlled by props.
+
 ---
 
 ## NPM Publishing
@@ -368,6 +356,15 @@ npm run build:lib
 # Publish
 npm publish
 ```
+
+---
+
+## Author
+
+**Kenneth H. Gimpao**
+Published: 2025
+
+**GitHub Repository:** [https://github.com/kitenebie/SoftPhone-FreePBX](https://github.com/kitenebie/SoftPhone-FreePBX)
 
 ---
 

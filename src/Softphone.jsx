@@ -35,6 +35,22 @@ function centerPos(w, h) {
   };
 }
 
+// ToggleRow defined outside component to avoid react-hooks/static-components error
+function ToggleRow({ label, k, uiPrefs, onToggle }) {
+  return (
+    <div className="sp-pref-row">
+      <span>{label}</span>
+      <button
+        className={`sp-pref-toggle ${uiPrefs[k] ? "on" : ""}`}
+        onClick={() => onToggle(k, !uiPrefs[k])}
+        type="button"
+      >
+        <span className="sp-pref-thumb"/>
+      </button>
+    </div>
+  );
+}
+
 export default function Softphone({
   enabledBubble                = true,
   showDialer: showDialerProp   = true,
@@ -171,16 +187,6 @@ export default function Softphone({
   const effectiveAnswerVideo = uiPrefs.answerwithVideoCall;
   const showAudioBtn = !effectiveAnswerVideo && uiPrefs.ShowIncomingCallAudio;
   const showVideoBtn = uiPrefs.ShowIncomingCallVideoBtn;
-
-  const ToggleRow = ({ label, k }) => (
-    <div className="sp-pref-row">
-      <span>{label}</span>
-      <button className={`sp-pref-toggle ${uiPrefs[k] ? "on" : ""}`}
-        onClick={() => handleUiPref(k, !uiPrefs[k])} type="button">
-        <span className="sp-pref-thumb"/>
-      </button>
-    </div>
-  );
 
   if (!uiPrefs.enabledBubble) return null;
 
@@ -402,13 +408,13 @@ export default function Softphone({
                 <div className="sp-settings-col">
                   <p className="sp-col-title">UI Preferences</p>
                   <div className="sp-prefs-list">
-                    <ToggleRow label="Show Bubble"           k="enabledBubble"/>
-                    <ToggleRow label="Show Dialer Button"    k="showDialer"/>
-                    <ToggleRow label="Show Settings Button"  k="showSetting"/>
-                    <ToggleRow label="Show Opacity Button"   k="showOpacity"/>
-                    <ToggleRow label="Answer with Video"     k="answerwithVideoCall"/>
-                    <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn"/>
-                    <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"/>
+                    <ToggleRow label="Show Bubble"           k="enabledBubble"            uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                    <ToggleRow label="Show Dialer Button"    k="showDialer"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                    <ToggleRow label="Show Settings Button"  k="showSetting"              uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                    <ToggleRow label="Show Opacity Button"   k="showOpacity"              uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                    <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                    <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                    <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                   </div>
                 </div>
 
@@ -419,6 +425,7 @@ export default function Softphone({
       )}
 
       {/* Floating FAB */}
+      {/* eslint-disable-next-line react-hooks/refs */}
       <div ref={fabPanel.ref} className={navClass}
         style={{ transform: `translate(${fabPanel.pos.x}px, ${fabPanel.pos.y}px)` }}>
         <div className={`sp-fab-menu ${navOpen ? "open" : ""}`}>
