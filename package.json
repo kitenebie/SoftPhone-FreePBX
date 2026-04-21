@@ -1,14 +1,14 @@
 {
   "name": "juv-ksip-softphone",
-  "version": "1.0.6",
+  "version": "1.0.8",
   "description": "A React WebRTC SIP softphone component for FreePBX/Asterisk with audio and video call support",
   "type": "module",
-  "main": "./dist/juv-ksip-softphone.umd.cjs",
+  "main": "./dist/juv-ksip-softphone.umd.js",
   "module": "./dist/juv-ksip-softphone.js",
   "exports": {
     ".": {
       "import": "./dist/juv-ksip-softphone.js",
-      "require": "./dist/juv-ksip-softphone.umd.cjs"
+      "require": "./dist/juv-ksip-softphone.umd.js"
     },
     "./styles": "./dist/juv-ksip-softphone.css"
   },

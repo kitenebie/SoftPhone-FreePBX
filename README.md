@@ -294,7 +294,7 @@ You can use this package directly in the browser via CDN — no build tools requ
 <script src="https://cdn.jsdelivr.net/npm/react-dom/umd/react-dom.production.min.js"></script>
 
 <!-- Softphone (lucide-react, react-draggable, sip.js are all bundled in) -->
-<script src="https://cdn.jsdelivr.net/npm/juv-ksip-softphone/dist/juv-ksip-softphone.umd.cjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/juv-ksip-softphone/dist/juv-ksip-softphone.umd.js"></script>
 ```
 
 ### 2. Mount the softphone

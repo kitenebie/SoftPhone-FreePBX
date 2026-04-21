@@ -8,7 +8,8 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, "src/lib/index.js"),
       name: "JuvKsipSoftphone",
-      fileName: "juv-ksip-softphone",
+      fileName: (format) => format === "umd" ? "juv-ksip-softphone.umd.js" : "juv-ksip-softphone.js",
+      formats: ["es", "umd"],
     },
     rollupOptions: {
       external: ["react", "react-dom"],
