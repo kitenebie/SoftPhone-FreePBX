@@ -366,7 +366,7 @@ Published: 2025
 
 **GitHub Repository:** [https://github.com/kitenebie/SoftPhone-FreePBX](https://github.com/kitenebie/SoftPhone-FreePBX)
 
-**NPM Package: *** [https://www.npmjs.com/package/juv-ksip-softphone](https://www.npmjs.com/package/juv-ksip-softphone)
+**NPM Package:** [https://www.npmjs.com/package/juv-ksip-softphone](https://www.npmjs.com/package/juv-ksip-softphone)
 ---
 
 ## License
