@@ -362,7 +362,7 @@ npm publish
 ## Author
 
 **Kenneth H. Gimpao**
-Published: 2025
+Published: 2026
 
 **GitHub Repository:** [https://github.com/kitenebie/SoftPhone-FreePBX](https://github.com/kitenebie/SoftPhone-FreePBX)
 
