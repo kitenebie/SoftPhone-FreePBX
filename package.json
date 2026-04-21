@@ -1,6 +1,6 @@
 {
   "name": "juv-ksip-softphone",
-  "version": "1.0.8",
+  "version": "1.0.26",
   "description": "A React WebRTC SIP softphone component for FreePBX/Asterisk with audio and video call support",
   "type": "module",
   "main": "./dist/juv-ksip-softphone.umd.js",
@@ -32,9 +32,10 @@
     "dev": "vite",
     "build": "vite build",
     "build:lib": "vite build --config vite.lib.config.js",
+    "build:cdn": "vite build --config vite.cdn.config.js",
     "lint": "eslint .",
     "preview": "vite preview",
-    "prepublishOnly": "npm run build:lib"
+    "prepublishOnly": "npm run build:lib && npm run build:cdn"
   },
   "peerDependencies": {
     "lucide-react": ">=0.400.0",

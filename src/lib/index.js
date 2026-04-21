@@ -3,3 +3,5 @@ export { useDraggable } from "../hooks/useDraggable.js";
 export { useResizable } from "../hooks/useResizable.js";
 export { default as Softphone } from "../Softphone.jsx";
 export { ksipcall } from "../ksipcall.js";
+export { createRoot } from "react-dom/client";
+export { createElement } from "react";

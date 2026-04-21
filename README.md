@@ -283,32 +283,27 @@ All UI props are configurable as toggles:
 
 You can use this package directly in the browser via CDN — no build tools required.
 
-### 1. Include dependencies
+### 1. Include scripts
 
 ```html
 <!-- Styles -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/juv-ksip-softphone/dist/juv-ksip-softphone.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/juv-ksip-softphone@latest/dist/juv-ksip-softphone.css">
 
-<!-- React (required peer dependency) -->
-<script src="https://cdn.jsdelivr.net/npm/react/umd/react.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/react-dom/umd/react-dom.production.min.js"></script>
-
-<!-- Softphone (lucide-react, react-draggable, sip.js are all bundled in) -->
-<script src="https://cdn.jsdelivr.net/npm/juv-ksip-softphone/dist/juv-ksip-softphone.umd.js"></script>
+<!-- Softphone — fully self-contained, no other scripts needed -->
+<script src="https://cdn.jsdelivr.net/npm/juv-ksip-softphone@latest/dist/juv-ksip-softphone.cdn.js"></script>
 ```
 
 ### 2. Mount the softphone
 
-The UMD build exposes `window.JuvKsipSoftphone`. Use `React.createElement` to pass props — the same props documented above apply.
+The CDN build exposes `window.JuvKsipSoftphone` with `Softphone`, `createRoot`, and `ksipcall` all included.
 
 ```html
 <div id="softphone"></div>
 
 <script>
-  const { Softphone } = window.JuvKsipSoftphone;
-
-  ReactDOM.createRoot(document.getElementById('softphone')).render(
-    React.createElement(Softphone, {
+  const { Softphone, createRoot, createElement } = window.JuvKsipSoftphone;
+  createRoot(document.getElementById('softphone')).render(
+    createElement(Softphone, {
       server: "192.168.1.100",
       wsProtocol: "ws",
       wsPort: "8088",
@@ -326,9 +321,9 @@ The UMD build exposes `window.JuvKsipSoftphone`. Use `React.createElement` to pa
 <div id="softphone"></div>
 
 <script>
-  const { Softphone } = window.JuvKsipSoftphone;
-  ReactDOM.createRoot(document.getElementById('softphone')).render(
-    React.createElement(Softphone)
+  const { Softphone, createRoot, createElement } = window.JuvKsipSoftphone;
+  createRoot(document.getElementById('softphone')).render(
+    createElement(Softphone)
   );
 </script>
 ```
@@ -343,8 +338,7 @@ Once the softphone is mounted, `window.ksipcall` is automatically available:
 ```
 
 > **Notes:**
-> - React and ReactDOM must be loaded **before** the softphone script.
-> - `lucide-react`, `react-draggable`, and `sip.js` are already bundled — no extra scripts needed.
+> - No React or ReactDOM scripts needed — everything is bundled in `juv-ksip-softphone.cdn.js`.
 > - Use `wss://` when your page is served over HTTPS.
 > - All props from the [Props](#props) section work the same way via `React.createElement`.
 

@@ -4,25 +4,24 @@ import { resolve } from "path";
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   build: {
     lib: {
       entry: resolve(__dirname, "src/lib/index.js"),
       name: "JuvKsipSoftphone",
-      fileName: (format) => format === "umd" ? "juv-ksip-softphone.umd.js" : "juv-ksip-softphone.js",
-      formats: ["es", "umd"],
+      fileName: () => "juv-ksip-softphone.cdn.js",
+      formats: ["iife"],
     },
     rollupOptions: {
-      external: ["react", "react-dom", "react-dom/client"],
       output: {
-        globals: {
-          react: "React",
-          "react-dom": "ReactDOM",
-          "react-dom/client": "ReactDOM",
-        },
+        inlineDynamicImports: true,
       },
     },
-    // Inline assets (mp3 ringtones) as base64 so they bundle correctly
     assetsInlineLimit: 1024 * 1024 * 5,
     cssCodeSplit: false,
+    outDir: "dist",
+    emptyOutDir: false,
   },
 });
