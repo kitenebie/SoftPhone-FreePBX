@@ -279,6 +279,64 @@ All UI props are configurable as toggles:
 
 ---
 
+## CDN Usage (Browser)
+
+You can use this package directly in the browser via CDN — no build tools required.
+
+### 1. Include dependencies
+
+```html
+<!-- Styles -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/juv-ksip-softphone/dist/juv-ksip-softphone.css">
+
+<!-- React (required peer dependency) -->
+<script src="https://cdn.jsdelivr.net/npm/react/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom/umd/react-dom.production.min.js"></script>
+
+<!-- Softphone -->
+<script src="https://cdn.jsdelivr.net/npm/juv-ksip-softphone/dist/juv-ksip-softphone.umd.cjs"></script>
+```
+
+### 2. Mount the softphone
+
+The UMD build exposes `window.JuvKsipSoftphone`. Use `React.createElement` to pass props — the same props documented above apply.
+
+```html
+<div id="softphone"></div>
+
+<script>
+  const { Softphone } = window.JuvKsipSoftphone;
+
+  const root = ReactDOM.createRoot(document.getElementById('softphone'));
+  root.render(
+    React.createElement(Softphone, {
+      server: "192.168.1.100",
+      wsProtocol: "wss",
+      wsPort: "8089",
+      extension: "1001",
+      password: "mypassword",
+      displayName: "John Doe"
+    })
+  );
+</script>
+```
+
+### 3. Trigger calls via `ksipcall` (CDN)
+
+Once the softphone is mounted, `window.ksipcall` is automatically available:
+
+```html
+<button onclick="window.ksipcall.audio('1002')">Audio Call</button>
+<button onclick="window.ksipcall.video('1002')">Video Call</button>
+```
+
+> **Notes:**
+> - React and ReactDOM must be loaded **before** the softphone script.
+> - Use `wss://` when your page is served over HTTPS.
+> - All props from the [Props](#props) section work the same way via `React.createElement`.
+
+---
+
 ## WebSocket Protocol
 
 | Protocol | Port | Use Case |
@@ -345,17 +403,6 @@ Config is automatically saved under the key `sip_softphone_config` and restored 
 
 > `enabledBubble` and `showSetting` are **never saved** to localStorage — they are always controlled by props.
 
----
-
-## NPM Publishing
-
-```bash
-# Build the library
-npm run build:lib
-
-# Publish
-npm publish
-```
 
 ---
 
