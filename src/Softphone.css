@@ -1,0 +1,544 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; color: #e2e8f0; }
+
+/* ── Workspace ───────────────────────────────────────────────── */
+.sp-workspace {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  pointer-events: none;
+  z-index: 9000;
+}
+.sp-workspace > * { pointer-events: auto; }
+
+/* Inner content clip for panels */
+.sp-panel-inner {
+  overflow: hidden;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Shared panel base ───────────────────────────────────────── */
+.sp-video-panel,
+.sp-dialer-panel,
+.sp-settings-panel {
+  background: rgba(10, 10, 20, 0.88);
+  border: 1px solid rgba(255,255,255,0.09);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  overflow: visible;
+  z-index: 9050;
+  will-change: transform;
+  pointer-events: auto;
+}
+
+/* react-draggable sets position:absolute on the wrapper */
+.sp-video-panel,
+.sp-dialer-panel { position: absolute !important; }
+
+.sp-settings-panel {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: min(860px, 96vw);
+  max-height: min(90vh, 700px);
+  overflow-y: auto;
+  z-index: 9300;
+}
+
+/* Backdrop behind settings */
+.sp-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 9250;
+  pointer-events: auto;
+}
+
+/* Expanded video */
+.sp-video-expanded {
+  position: fixed !important;
+  top: 0 !important; left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
+  transform: none !important;
+  z-index: 9090;
+  display: flex;
+  flex-direction: column;
+}
+.sp-video-expanded .sp-video-wrap { flex: 1; aspect-ratio: unset; }
+.sp-video-expanded .sp-video-local { width: 180px; height: 135px; }
+
+.sp-video-panel  { width: 360px; display: flex; flex-direction: column; }
+.sp-dialer-panel { width: 300px; }
+
+/* ── Panel Header ────────────────────────────────────────────── */
+.sp-panel-header,
+.sp-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  cursor: grab;
+  user-select: none;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.sp-panel-header:active { cursor: grabbing; }
+.sp-settings-header { cursor: default; }
+.sp-panel-header span,
+.sp-settings-header span { flex: 1; color: #94a3b8; }
+
+.sp-call-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.sp-call-dot.active  { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+.sp-call-dot.ringing { background: #facc15; animation: pulse 1s infinite; }
+
+/* ── Video ───────────────────────────────────────────────────── */
+.sp-video-wrap {
+  position: relative;
+  background: #000;
+  flex: 1;              /* fill remaining height when panel is resized */
+  min-height: 120px;
+  overflow: hidden;
+}
+.sp-video-placeholder {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px; color: #475569; font-size: 0.85rem;
+  background: rgba(0,0,0,0.85);
+}
+.sp-video-remote { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sp-video-local {
+  position: absolute; bottom: 10px; right: 10px;
+  width: 90px; height: 68px;
+  border-radius: 8px; object-fit: cover;
+  border: 2px solid rgba(79,70,229,0.6);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.sp-call-controls {
+  display: flex; align-items: center;
+  justify-content: center; gap: 12px; padding: 14px;
+}
+.sp-ctrl-btn {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.06);
+  color: #94a3b8; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.sp-ctrl-btn:hover { background: rgba(255,255,255,0.12); color: #e2e8f0; }
+.sp-ctrl-btn.active { background: rgba(239,68,68,0.2); color: #f87171; border-color: rgba(239,68,68,0.3); }
+.sp-ctrl-hangup { width: 52px; height: 52px; background: #ef4444; color: #fff; border-color: transparent; }
+.sp-ctrl-hangup:hover { background: #dc2626; }
+
+/* ── Dialer ──────────────────────────────────────────────────── */
+.sp-dial-row {
+  display: flex; align-items: center;
+  gap: 8px; padding: 12px 14px 8px;
+}
+.sp-dial-input {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; padding: 10px 12px;
+  color: #e2e8f0; font-size: 1.1rem;
+  letter-spacing: 2px; text-align: center;
+  outline: none; transition: border-color 0.2s;
+}
+.sp-dial-input:focus { border-color: #4f46e5; }
+.sp-dial-input::placeholder { color: #334155; letter-spacing: 0; font-size: 0.85rem; }
+
+.sp-dialpad {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 6px; padding: 8px 14px;
+}
+.sp-key {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 12px 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px; cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  color: #e2e8f0; gap: 2px;
+}
+.sp-key:hover  { background: rgba(255,255,255,0.09); }
+.sp-key:active { transform: scale(0.94); background: rgba(79,70,229,0.2); }
+.sp-key-main { font-size: 1.1rem; font-weight: 600; line-height: 1; }
+.sp-key-sub  { font-size: 0.55rem; color: #475569; letter-spacing: 1px; font-weight: 500; }
+
+.sp-dial-actions {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 14px; gap: 10px;
+}
+.sp-toggle {
+  display: flex; align-items: center; gap: 6px;
+  cursor: pointer; font-size: 0.82rem; color: #64748b; user-select: none;
+}
+.sp-toggle input { display: none; }
+.sp-toggle-track {
+  width: 32px; height: 18px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 9px; position: relative; transition: background 0.2s;
+}
+.sp-toggle-track::after {
+  content: ''; position: absolute;
+  top: 2px; left: 2px; width: 14px; height: 14px;
+  background: #64748b; border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+.sp-toggle input:checked ~ .sp-toggle-track { background: rgba(79,70,229,0.4); }
+.sp-toggle input:checked ~ .sp-toggle-track::after { transform: translateX(14px); background: #818cf8; }
+
+.sp-call-btn {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #22c55e; border: none; color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, transform 0.1s;
+  box-shadow: 0 4px 16px rgba(34,197,94,0.3);
+}
+.sp-call-btn:hover:not(:disabled)  { background: #16a34a; }
+.sp-call-btn:active:not(:disabled) { transform: scale(0.95); }
+.sp-call-btn:disabled { background: rgba(255,255,255,0.06); color: #334155; box-shadow: none; cursor: not-allowed; }
+
+/* ── Settings Panel ──────────────────────────────────────────── */
+.sp-settings-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sp-settings-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.sp-settings-col {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sp-col-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #818cf8;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 2px;
+}
+
+.sp-settings-status {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 8px;
+}
+.sp-status-indicator {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; font-weight: 500;
+  padding: 4px 10px; border-radius: 20px;
+}
+.status-green  { background: rgba(34,197,94,0.12);  color: #4ade80; }
+.status-yellow { background: rgba(234,179,8,0.12);  color: #facc15; }
+.status-red    { background: rgba(239,68,68,0.12);  color: #f87171; }
+
+.sp-settings-disconnect {
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(239,68,68,0.12); color: #f87171;
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 8px; padding: 5px 10px;
+  font-size: 0.78rem; cursor: pointer; transition: background 0.2s;
+}
+.sp-settings-disconnect:hover { background: rgba(239,68,68,0.22); }
+
+.sp-settings-error {
+  font-size: 0.78rem; color: #f87171;
+  background: rgba(239,68,68,0.08);
+  border-radius: 6px; padding: 6px 10px;
+}
+
+.sp-settings-section { display: flex; flex-direction: column; gap: 10px; }
+
+.sp-settings-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; color: #64748b; font-weight: 500;
+}
+
+.sp-slider {
+  width: 100%; accent-color: #4f46e5;
+  height: 4px; cursor: pointer;
+}
+
+/* Login form inside settings */
+.sp-login-form { display: flex; flex-direction: column; gap: 8px; }
+.sp-field {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; padding: 0 12px; color: #94a3b8;
+  transition: border-color 0.2s;
+}
+.sp-field:focus-within { border-color: #818cf8; color: #818cf8; }
+.sp-field input {
+  flex: 1; background: none; border: none; outline: none;
+  padding: 10px 0; color: #e2e8f0; font-size: 0.85rem;
+}
+.sp-field input::placeholder { color: #475569; }
+.sp-ws-preview {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 0.7rem; color: #475569; padding: 5px 8px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 6px; border: 1px solid rgba(255,255,255,0.04);
+}
+
+/* Protocol + port row */
+.sp-proto-row { display: flex; gap: 8px; }
+.sp-proto-select { flex: 1.6; }
+.sp-proto-port   { flex: 1; }
+.sp-field select {
+  flex: 1; background: none; border: none; outline: none;
+  padding: 10px 0; color: #e2e8f0; font-size: 0.85rem;
+  cursor: pointer;
+}
+.sp-field select option { background: #0f172a; color: #e2e8f0; }
+.sp-login-btn {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 11px; background: #4f46e5; color: #fff;
+  border: none; border-radius: 8px;
+  font-size: 0.88rem; font-weight: 600; cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+.sp-login-btn:hover  { background: #4338ca; }
+.sp-login-btn:active { transform: scale(0.98); }
+
+/* ── Incoming Call Overlay ───────────────────────────────────── */
+.sp-incoming-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9200; pointer-events: auto;
+}
+.sp-incoming-card {
+  background: rgba(12, 12, 24, 0.95);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-radius: 24px; padding: 40px 48px;
+  text-align: center;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.5);
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sp-incoming-avatar {
+  width: 72px; height: 72px;
+  background: rgba(79,70,229,0.2);
+  border: 2px solid rgba(79,70,229,0.4);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16px; color: #818cf8;
+  animation: ring 1.2s ease infinite;
+}
+@keyframes ring {
+  0%,100% { box-shadow: 0 0 0 0 rgba(79,70,229,0.4); }
+  50%      { box-shadow: 0 0 0 16px rgba(79,70,229,0); }
+}
+.sp-incoming-label  { font-size: 0.78rem; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+.sp-incoming-caller { font-size: 1.35rem; font-weight: 700; color: #e2e8f0; margin-bottom: 28px; }
+.sp-incoming-actions { display: flex; gap: 16px; justify-content: center; }
+.sp-action-btn {
+  width: 58px; height: 58px; border-radius: 50%; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.15s;
+}
+.sp-action-btn:hover  { transform: scale(1.08); }
+.sp-action-btn:active { transform: scale(0.95); }
+.sp-action-answer { background: #22c55e; color: #fff; }
+.sp-action-video  { background: #4f46e5; color: #fff; }
+.sp-action-reject { background: #ef4444; color: #fff; }
+
+/* ── Floating FAB Nav — draggable ───────────────────────────── */
+.sp-fab-wrap {
+  position: fixed;
+  top: 0; left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 9100;
+  pointer-events: auto;
+  will-change: transform;
+}
+
+/* nav-up: menu appears above FAB (FAB in bottom half) */
+.sp-fab-wrap.nav-up  { flex-direction: column-reverse; }
+/* nav-down: menu appears below FAB (FAB in top half) */
+.sp-fab-wrap.nav-down { flex-direction: column; }
+/* horizontal alignment */
+.sp-fab-wrap.nav-left  { align-items: flex-end; }
+.sp-fab-wrap.nav-right { align-items: flex-start; }
+
+/* Sub-menu items */
+.sp-fab-menu {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 8px;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1),
+              opacity 0.25s ease;
+}
+.sp-fab-menu.open {
+  max-height: 200px;
+  opacity: 1;
+}
+
+.sp-fab-item {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(15,15,28,0.9);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  color: #94a3b8; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, color 0.2s, transform 0.15s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.sp-fab-item:hover { background: rgba(79,70,229,0.25); color: #818cf8; transform: scale(1.08); }
+.sp-fab-item.fab-active { background: rgba(79,70,229,0.3); color: #818cf8; border-color: rgba(79,70,229,0.4); }
+
+/* Main FAB button */
+.sp-fab-main {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: #4f46e5; border: none; color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 24px rgba(79,70,229,0.45);
+  transition: background 0.2s, transform 0.2s;
+  position: relative;
+}
+.sp-fab-main:hover { background: #4338ca; transform: scale(1.06); }
+.sp-fab-main.fab-open { background: #374151; box-shadow: 0 6px 24px rgba(0,0,0,0.3); }
+.sp-fab-main.fab-ringing {
+  animation: fabRing 0.6s ease infinite alternate;
+}
+@keyframes fabRing {
+  from { box-shadow: 0 6px 24px rgba(79,70,229,0.45); }
+  to   { box-shadow: 0 6px 32px rgba(239,68,68,0.7); background: #ef4444; }
+}
+
+/* Status dot on FAB */
+.sp-fab-dot {
+  position: absolute; top: 4px; right: 4px;
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid rgba(10,10,20,0.9);
+}
+.sp-fab-dot.status-green  { background: #4ade80; }
+.sp-fab-dot.status-yellow { background: #facc15; animation: pulse 1s infinite; }
+.sp-fab-dot.status-red    { background: #f87171; }
+
+/* ── Shared icon button ──────────────────────────────────────── */
+.sp-icon-btn {
+  background: none; border: none; color: #64748b; cursor: pointer;
+  padding: 5px; border-radius: 6px;
+  display: flex; align-items: center;
+  transition: color 0.2s, background 0.2s;
+}
+.sp-icon-btn:hover { color: #e2e8f0; background: rgba(255,255,255,0.06); }
+
+/* ── Codec grid ───────────────────────────────────────────── */
+.sp-codecs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 4px 0;
+}
+.sp-codec-col { display: flex; flex-direction: column; gap: 5px; }
+.sp-codec-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; color: #94a3b8; cursor: pointer;
+  padding: 3px 0;
+}
+.sp-codec-item input { accent-color: #4f46e5; cursor: pointer; }
+.sp-codec-item:hover { color: #e2e8f0; }
+
+/* ── UI Prefs toggles ──────────────────────────────────────── */
+.sp-prefs-list { display: flex; flex-direction: column; gap: 6px; margin: 4px 0; }
+.sp-pref-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  font-size: 0.78rem; color: #94a3b8;
+}
+.sp-pref-toggle {
+  width: 36px; height: 20px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.1);
+  border: none; cursor: pointer;
+  position: relative; transition: background 0.2s;
+  flex-shrink: 0;
+}
+.sp-pref-toggle.on { background: #4f46e5; }
+.sp-pref-thumb {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+  display: block;
+}
+.sp-pref-toggle.on .sp-pref-thumb { transform: translateX(16px); }
+
+/* ── Resize handle ───────────────────────────────────────────── */
+.sp-resize-handle {
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 20px; height: 20px;
+  cursor: nwse-resize;
+  z-index: 10;
+  border-radius: 0 0 16px 0;
+  background: linear-gradient(
+    135deg,
+    transparent 40%,
+    rgba(255,255,255,0.12) 40%, rgba(255,255,255,0.12) 50%,
+    transparent 50%, transparent 65%,
+    rgba(255,255,255,0.12) 65%, rgba(255,255,255,0.12) 75%,
+    transparent 75%
+  );
+}
+.sp-resize-handle:hover {
+  background: linear-gradient(
+    135deg,
+    transparent 40%,
+    rgba(129,140,248,0.5) 40%, rgba(129,140,248,0.5) 50%,
+    transparent 50%, transparent 65%,
+    rgba(129,140,248,0.5) 65%, rgba(129,140,248,0.5) 75%,
+    transparent 75%
+  );
+}
+
+/* ── Utilities ───────────────────────────────────────────────── */
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
