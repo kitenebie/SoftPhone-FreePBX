@@ -539,6 +539,57 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; color: #e2e8f0; 
 }
 
 /* ── Utilities ───────────────────────────────────────────────── */
+
+/* ── Panel Position Grid ─────────────────────────────────────── */
+.sp-position-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: 4px 0;
+}
+.sp-pos-btn {
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.sp-pos-btn:hover  { background: rgba(79,70,229,0.2); border-color: rgba(79,70,229,0.4); }
+.sp-pos-btn.active { background: rgba(79,70,229,0.4); border-color: #818cf8; }
+
+.sp-offset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 4px 0;
+}
+.sp-offset-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 7px;
+  padding: 4px 8px;
+}
+.sp-offset-field span {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-weight: 600;
+  width: 10px;
+  flex-shrink: 0;
+}
+.sp-offset-field input {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  color: #e2e8f0;
+  font-size: 0.82rem;
+}
+.sp-offset-field input::-webkit-inner-spin-button { opacity: 0.4; }
+
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

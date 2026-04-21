@@ -28,11 +28,35 @@ const STORAGE_KEY = "sip_softphone_config";
 function loadConfig() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } }
 function saveConfig(c) { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); }
 function buildWs(protocol, server, port) { return `${protocol}://${server}:${port}/ws`; }
-function centerPos(w, h) {
-  return {
-    x: Math.max(0, Math.round(window.innerWidth  / 2 - w / 2)),
-    y: Math.max(0, Math.round(window.innerHeight / 2 - h / 2)),
+
+const PANEL_POSITIONS = [
+  "top-left", "top-center", "top-right",
+  "center-left", "center", "center-right",
+  "bottom-left", "bottom-center", "bottom-right",
+];
+
+function computePanelPos(position = "center", w = 0, h = 0, offset = {}) {
+  const t = offset.top    ?? 12;
+  const r = offset.right  ?? 12;
+  const b = offset.bottom ?? 12;
+  const l = offset.left   ?? 12;
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  const cx = Math.round(W / 2 - w / 2);
+  const cy = Math.round(H / 2 - h / 2);
+  const positions = {
+    "top-left":      { x: l,          y: t },
+    "top-center":    { x: cx,         y: t },
+    "top-right":     { x: W - w - r,  y: t },
+    "center-left":   { x: l,          y: cy },
+    "center":        { x: cx,         y: cy },
+    "center-right":  { x: W - w - r,  y: cy },
+    "bottom-left":   { x: l,          y: H - h - b },
+    "bottom-center": { x: cx,         y: H - h - b },
+    "bottom-right":  { x: W - w - r,  y: H - h - b },
   };
+  const pos = positions[position] ?? positions["center"];
+  return { x: Math.max(0, pos.x), y: Math.max(0, pos.y) };
 }
 
 // ToggleRow defined outside component to avoid react-hooks/static-components error
@@ -59,6 +83,8 @@ export default function Softphone({
   answerwithVideoCall          = false,
   ShowIncomingCallVideoBtn     = true,
   ShowIncomingCallAudio        = true,
+  panelPosition: panelPositionProp = "center",
+  panelOffset:   panelOffsetProp   = {},
   // SIP config props
   server:      serverProp      = "",
   wsProtocol:  wsProtocolProp  = "ws",
@@ -68,6 +94,16 @@ export default function Softphone({
   displayName: displayNameProp = "",
 }) {
   const saved = loadConfig();
+
+  const [panelPosition, setPanelPosition] = useState(
+    saved?.panelPosition ?? panelPositionProp
+  );
+  const [panelOffset, setPanelOffset] = useState({
+    top:    saved?.panelOffset?.top    ?? panelOffsetProp.top    ?? 12,
+    right:  saved?.panelOffset?.right  ?? panelOffsetProp.right  ?? 12,
+    bottom: saved?.panelOffset?.bottom ?? panelOffsetProp.bottom ?? 12,
+    left:   saved?.panelOffset?.left   ?? panelOffsetProp.left   ?? 12,
+  });
 
   const [form, setForm] = useState({
     server:      saved?.server      || serverProp      || "",
@@ -145,6 +181,8 @@ export default function Softphone({
       displayName: form.displayName,
       audioCodecs: form.audioCodecs,
       videoCodecs: form.videoCodecs,
+      panelPosition,
+      panelOffset,
       // Save all uiPrefs EXCEPT enabledBubble and showSetting
       ...Object.fromEntries(
         Object.entries(uiPrefs).filter(([k]) => k !== "enabledBubble" && k !== "showSetting")
@@ -220,7 +258,7 @@ export default function Softphone({
 
       {/* Draggable + Resizable Video Panel */}
       {(callState === "active" || callState === "ringing" || callState === "incoming") && (
-        <Draggable nodeRef={videoNodeRef} handle=".sp-panel-header" bounds="parent" defaultPosition={centerPos(360, 320)}>
+        <Draggable nodeRef={videoNodeRef} handle=".sp-panel-header" bounds="parent" defaultPosition={computePanelPos(panelPosition, 360, 320, panelOffset)}>
           <div ref={videoNodeRef}
             className={`sp-video-panel ${expanded ? "sp-video-expanded" : ""}`}
             style={expanded ? {} : { width: `${videoSize.size.w}px`, height: `${videoSize.size.h}px` }}>
@@ -260,7 +298,7 @@ export default function Softphone({
 
       {/* Draggable Dialer Panel */}
       {showDialer && (
-        <Draggable nodeRef={dialerNodeRef} handle=".sp-panel-header" bounds="parent" defaultPosition={centerPos(300, 460)}>
+        <Draggable nodeRef={dialerNodeRef} handle=".sp-panel-header" bounds="parent" defaultPosition={computePanelPos(panelPosition, 300, 460, panelOffset)}>
           <div ref={dialerNodeRef} className="sp-dialer-panel">
             <div className="sp-panel-inner">
               <div className="sp-panel-header">
@@ -415,6 +453,32 @@ export default function Softphone({
                     <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                     <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                     <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                  </div>
+
+                  <p className="sp-col-title" style={{ marginTop: 12 }}>Panel Position</p>
+                  <div className="sp-position-grid">
+                    {PANEL_POSITIONS.map((pos) => (
+                      <button
+                        key={pos}
+                        type="button"
+                        title={pos}
+                        className={`sp-pos-btn ${panelPosition === pos ? "active" : ""}`}
+                        onClick={() => setPanelPosition(pos)}
+                      />
+                    ))}
+                  </div>
+                  <p className="sp-settings-label" style={{ marginTop: 10 }}>Offset (px)</p>
+                  <div className="sp-offset-grid">
+                    {["top", "right", "bottom", "left"].map((side) => (
+                      <div key={side} className="sp-offset-field">
+                        <span>{side[0].toUpperCase()}</span>
+                        <input
+                          type="number" min="0" max="999"
+                          value={panelOffset[side]}
+                          onChange={(e) => setPanelOffset((o) => ({ ...o, [side]: Number(e.target.value) }))}
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
 
