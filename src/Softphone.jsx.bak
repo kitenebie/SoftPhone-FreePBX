@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Draggable from "react-draggable";
 import {
   Phone, PhoneOff, PhoneIncoming, PhoneMissed,
@@ -420,20 +420,6 @@ export default function Softphone({
                   <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                   <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                 </div>
-                <p className="sp-settings-label" style={{ marginTop: 10 }}>Audio Codecs</p>
-                {AUDIO_CODECS.map((c) => (
-                  <label key={c} className="sp-codec-item">
-                    <input type="checkbox" checked={form.audioCodecs.includes(c)} onChange={() => toggleCodec("audio", c)}/>
-                    {c}
-                  </label>
-                ))}
-                <p className="sp-settings-label" style={{ marginTop: 10 }}>Video Codecs</p>
-                {VIDEO_CODECS.map((c) => (
-                  <label key={c} className="sp-codec-item">
-                    <input type="checkbox" checked={form.videoCodecs.includes(c)} onChange={() => toggleCodec("video", c)}/>
-                    {c}
-                  </label>
-                ))}
                 <button type="submit" className="sp-login-btn">
                   <Phone size={14}/> {activeConfig ? "Save & Reconnect" : "Save & Connect"}
                 </button>
