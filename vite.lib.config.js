@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import commonjs from "@rollup/plugin-commonjs";
 import { resolve } from "path";
 
 export default defineConfig({
@@ -8,20 +9,47 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, "src/lib/index.js"),
       name: "JuvKsipSoftphone",
-      fileName: (format) => format === "umd" ? "juv-ksip-softphone.umd.js" : "juv-ksip-softphone.js",
+      fileName: (format) => format === "umd"
+        ? "juv-ksip-softphone.umd.js"
+        : "juv-ksip-softphone.js",
       formats: ["es", "umd"],
     },
     rollupOptions: {
-      external: ["react", "react-dom", "react-dom/client"],
-      output: {
-        globals: {
-          react: "React",
-          "react-dom": "ReactDOM",
-          "react-dom/client": "ReactDOM",
+      plugins: [
+        commonjs({
+          include: /node_modules/,
+          transformMixedEsModules: true,
+          requireReturnsDefault: "auto",
+        }),
+      ],
+      external: [
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "react-draggable",
+      ],
+      output: [
+        {
+          format: "es",
+          entryFileNames: "juv-ksip-softphone.js",
         },
-      },
+        {
+          format: "umd",
+          name: "JuvKsipSoftphone",
+          entryFileNames: "juv-ksip-softphone.umd.js",
+          globals: {
+            react: "React",
+            "react-dom": "ReactDOM",
+            "react-dom/client": "ReactDOM",
+            "react/jsx-runtime": "React",
+            "react/jsx-dev-runtime": "React",
+            "react-draggable": "ReactDraggable",
+          },
+        },
+      ],
     },
-    // Inline assets (mp3 ringtones) as base64 so they bundle correctly
     assetsInlineLimit: 1024 * 1024 * 5,
     cssCodeSplit: false,
   },

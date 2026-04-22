@@ -1,9 +1,9 @@
 {
   "name": "juv-ksip-softphone",
-  "version": "1.0.30",
+  "version": "1.0.40",
   "description": "A React WebRTC SIP softphone component for FreePBX/Asterisk with audio and video call support",
   "type": "module",
-  "main": "./dist/juv-ksip-softphone.umd.js",
+  "main": "./dist/juv-ksip-softphone.js",
   "module": "./dist/juv-ksip-softphone.js",
   "exports": {
     ".": {
@@ -38,26 +38,22 @@
     "prepublishOnly": "npm run build:lib && npm run build:cdn"
   },
   "peerDependencies": {
-    "lucide-react": ">=0.400.0",
     "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
-  },
-  "peerDependenciesMeta": {
-    "lucide-react": {
-      "optional": true
-    }
+    "react-dom": ">=18.0.0",
+    "react-draggable": ">=4.0.0"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/kitenebie/SoftPhone-FreePBX.git"
   },
   "dependencies": {
+    "juv-ksip-softphone": "^1.0.37",
     "lucide-react": ">=0.400.0",
-    "react-draggable": "^4.5.0",
     "sip.js": "^0.21.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@rollup/plugin-commonjs": "^28.0.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
@@ -67,6 +63,7 @@
     "globals": "^17.5.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+    "react-draggable": "^4.5.0",
     "vite": "^8.0.9"
   }
 }
