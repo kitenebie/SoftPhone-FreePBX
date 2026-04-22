@@ -83,6 +83,7 @@ export default function Softphone({
   answerwithVideoCall          = false,
   ShowIncomingCallVideoBtn     = true,
   ShowIncomingCallAudio        = true,
+  fullscreen                   = false,
   panelPosition: panelPositionProp = "center",
   panelOffset:   panelOffsetProp   = {},
   // SIP config props
@@ -117,13 +118,14 @@ export default function Softphone({
   });
 
   const [uiPrefs, setUiPrefs] = useState({
-    enabledBubble:            enabledBubble,                                        // never from localStorage
+    enabledBubble:            enabledBubble,
     showDialer:               saved?.showDialer               ?? showDialerProp,
-    showSetting:              showSettingProp,                                       // never from localStorage
+    showSetting:              showSettingProp,
     showOpacity:              saved?.showOpacity              ?? showOpacityProp,
     answerwithVideoCall:      saved?.answerwithVideoCall       ?? answerwithVideoCall,
     ShowIncomingCallVideoBtn: saved?.ShowIncomingCallVideoBtn  ?? ShowIncomingCallVideoBtn,
     ShowIncomingCallAudio:    saved?.ShowIncomingCallAudio     ?? (answerwithVideoCall ? false : ShowIncomingCallAudio),
+    fullscreen:               saved?.fullscreen               ?? fullscreen,
   });
 
   const [activeConfig, setActiveConfig] = useState(() => {
@@ -141,7 +143,7 @@ export default function Softphone({
   });
 
   const [dialInput,    setDialInput]    = useState("");
-  const [withVideo,    setWithVideo]    = useState(false);
+  const [withVideo, setWithVideo] = useState(false);
   const [muted,        setMuted]        = useState(false);
   const [videoMuted,   setVideoMuted]   = useState(false);
   const [expanded,     setExpanded]     = useState(false);
@@ -149,6 +151,7 @@ export default function Softphone({
   const [showDialer,   setShowDialer]   = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [fabOpacity,   setFabOpacity]   = useState(1);
+  const [showFsSettings, setShowFsSettings] = useState(false);
 
   const sipConfig = activeConfig ?? { server: "", wsServer: "", extension: "", password: "" };
   const {
@@ -162,11 +165,16 @@ export default function Softphone({
   const videoNodeRef  = useRef(null);
   const dialerNodeRef = useRef(null);
 
+  // Reset withVideo to false when call ends so dialer doesn't stay on video mode
+  useEffect(() => {
+    if (callState === "idle") setWithVideo(false);
+  }, [callState]);
+
   useEffect(() => {
     const unsub = ksipcall._subscribe(({ target, video }) => {
       if (!registered) return;
       setDialInput(target);
-      setWithVideo(video);
+      // Don't permanently set withVideo — only use it for this specific call
       call(target, video);
     });
     return unsub;
@@ -227,6 +235,202 @@ export default function Softphone({
   const showVideoBtn = uiPrefs.ShowIncomingCallVideoBtn;
 
   if (!uiPrefs.enabledBubble) return null;
+
+  // ── Fullscreen Mode ───────────────────────────────────────────
+  if (uiPrefs.fullscreen) {
+    return (
+      <div className="sp-fs-workspace">
+        <audio ref={remoteAudioRef} autoPlay />
+
+        {/* Fullscreen Header */}
+        <div className="sp-fs-header">
+          <div className={`sp-status-indicator ${statusColor}`}>
+            {registered ? <Wifi size={13}/> : reconnecting ? <Loader size={13} className="spin"/> : <WifiOff size={13}/>}
+            <span>{registered ? `Ext. ${activeConfig?.extension}` : reconnecting ? "Reconnecting..." : "Not connected"}</span>
+          </div>
+          {error && !reconnecting && <span className="sp-statusbar-error">{error}</span>}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            {activeConfig && (
+              <button className="sp-icon-btn" title="Disconnect"
+                onClick={() => setActiveConfig(null)}>
+                <LogOut size={15}/>
+              </button>
+            )}
+            <button
+              className={`sp-icon-btn ${showFsSettings ? "sp-fs-settings-active" : ""}`}
+              title="Settings"
+              onClick={() => setShowFsSettings((s) => !s)}>
+              <Settings size={15}/>
+            </button>
+          </div>
+        </div>
+
+        {/* Fullscreen Body */}
+        <div className="sp-fs-body">
+
+          {/* Column 1 — Dialer */}
+          <div className="sp-fs-col sp-fs-dialer-col">
+            <div className="sp-fs-col-title">Dialer</div>
+
+            {/* Incoming call banner inside dialer col */}
+            {callState === "incoming" && (
+              <div className="sp-fs-incoming">
+                <div className="sp-incoming-avatar" style={{ margin: "0 auto 12px" }}><PhoneIncoming size={22}/></div>
+                <p className="sp-incoming-label">Incoming Call</p>
+                <p className="sp-incoming-caller">
+                  {incomingSession?.remoteIdentity?.displayName ||
+                   incomingSession?.remoteIdentity?.uri?.user || "Unknown"}
+                </p>
+                <div className="sp-incoming-actions" style={{ justifyContent: "center", marginTop: 12 }}>
+                  {effectiveAnswerVideo
+                    ? <button className="sp-action-btn sp-action-video" onClick={() => answer(true)}><Video size={18}/></button>
+                    : <>
+                        {showAudioBtn && <button className="sp-action-btn sp-action-answer" onClick={() => answer(false)}><Phone size={18}/></button>}
+                        {showVideoBtn && <button className="sp-action-btn sp-action-video"  onClick={() => answer(true)}><Video size={18}/></button>}
+                      </>}
+                  <button className="sp-action-btn sp-action-reject" onClick={hangup}><PhoneMissed size={18}/></button>
+                </div>
+              </div>
+            )}
+
+            <div className="sp-dial-row">
+              <input className="sp-dial-input" value={dialInput}
+                onChange={(e) => setDialInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && dialInput && registered && callState === "idle") call(dialInput, withVideo); }}
+                placeholder="Enter number"/>
+              <button className="sp-icon-btn" onClick={() => setDialInput((p) => p.slice(0, -1))}>
+                <Delete size={16}/>
+              </button>
+            </div>
+            <div className="sp-dialpad">
+              {DIALPAD.map(({ key, sub }) => (
+                <button key={key} className="sp-key" onClick={() => setDialInput((p) => p + key)}>
+                  <span className="sp-key-main">{key}</span>
+                  {sub && <span className="sp-key-sub">{sub}</span>}
+                </button>
+              ))}
+            </div>
+            <div className="sp-dial-actions">
+              <label className="sp-toggle">
+                <input type="checkbox" checked={withVideo} onChange={(e) => setWithVideo(e.target.checked)}/>
+                <span className="sp-toggle-track"/>
+                <Video size={12}/><span>Video</span>
+              </label>
+              <button className="sp-call-btn"
+                onClick={() => { if (dialInput && registered && callState === "idle") call(dialInput, withVideo); }}
+                disabled={!dialInput || !registered || callState !== "idle"}>
+                <Phone size={16}/>
+              </button>
+            </div>
+          </div>
+
+          {/* Column 2 — Video / Call */}
+          <div className="sp-fs-col sp-fs-video-col">
+            <div className="sp-fs-col-title">
+              {callState === "ringing" ? "Calling..." : callState === "active" ? "On Call" : "Video"}
+              {(callState === "active" || callState === "ringing") && (
+                <div className={`sp-call-dot ${callState === "active" ? "active" : "ringing"}`} style={{ marginLeft: 8 }}/>
+              )}
+            </div>
+            <div className="sp-fs-video-wrap">
+              <video ref={remoteVideoRef} autoPlay playsInline className="sp-video-remote"/>
+              {!videoMuted && <video ref={localVideoRef} autoPlay playsInline muted className="sp-video-local"/>}
+              {callState === "ringing" && (
+                <div className="sp-video-placeholder">
+                  <Loader size={32} className="spin"/>
+                  <span>Waiting for answer...</span>
+                </div>
+              )}
+              {callState === "idle" && (
+                <div className="sp-video-placeholder">
+                  <Phone size={32} style={{ opacity: 0.2 }}/>
+                  <span style={{ opacity: 0.4 }}>No active call</span>
+                </div>
+              )}
+            </div>
+            {(callState === "active" || callState === "ringing") && (
+              <div className="sp-call-controls">
+                <button className={`sp-ctrl-btn ${muted ? "active" : ""}`} onClick={handleMute}>
+                  {muted ? <MicOff size={16}/> : <Mic size={16}/>}
+                </button>
+                <button className="sp-ctrl-btn sp-ctrl-hangup" onClick={hangup}><PhoneOff size={18}/></button>
+                <button className={`sp-ctrl-btn ${videoMuted ? "active" : ""}`} onClick={handleVideoMute}>
+                  {videoMuted ? <VideoOff size={16}/> : <Video size={16}/>}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Column 3 — Settings (slide in/out) */}
+          <div className={`sp-fs-col sp-fs-settings-col ${showFsSettings ? "open" : ""}`}>
+            <div className="sp-fs-col-title">
+              Settings
+              <button className="sp-icon-btn" onClick={() => setShowFsSettings(false)} style={{ marginLeft: "auto" }}>
+                <X size={13}/>
+              </button>
+            </div>
+            <div className="sp-fs-settings-body">
+              <div className="sp-settings-status">
+                <div className={`sp-status-indicator ${statusColor}`}>
+                  {registered ? <Wifi size={12}/> : reconnecting ? <Loader size={12} className="spin"/> : <WifiOff size={12}/>}
+                  <span>{registered ? `Ext. ${activeConfig?.extension}` : reconnecting ? "Reconnecting..." : "Not connected"}</span>
+                </div>
+                {activeConfig && (
+                  <button className="sp-settings-disconnect"
+                    onClick={() => { setActiveConfig(null); setShowFsSettings(false); }}>
+                    <LogOut size={13}/> Disconnect
+                  </button>
+                )}
+              </div>
+              <form className="sp-login-form" onSubmit={handleConnect}>
+                {[
+                  { icon: <Server size={14}/>, ph: "Server IP",            k: "server",      t: "text"     },
+                  { icon: <User   size={14}/>, ph: "Extension",            k: "extension",   t: "text"     },
+                  { icon: <Lock   size={14}/>, ph: "Password",             k: "password",    t: "password" },
+                  { icon: <User   size={14}/>, ph: "Display Name (opt.)",  k: "displayName", t: "text"     },
+                ].map(({ icon, ph, k, t }) => (
+                  <div className="sp-field" key={k}>
+                    {icon}
+                    <input placeholder={ph} type={t} value={form[k]}
+                      onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))}
+                      required={k !== "displayName"} />
+                  </div>
+                ))}
+                <div className="sp-proto-row">
+                  <div className="sp-field sp-proto-select">
+                    <Monitor size={14}/>
+                    <select value={form.wsProtocol} onChange={(e) => setForm((f) => ({ ...f, wsProtocol: e.target.value }))}>
+                      <option value="ws">ws:// (8088)</option>
+                      <option value="wss">wss:// (8089)</option>
+                    </select>
+                  </div>
+                  <div className="sp-field sp-proto-port">
+                    <Hash size={14}/>
+                    <input placeholder="Port" value={form.wsPort}
+                      onChange={(e) => setForm((f) => ({ ...f, wsPort: e.target.value }))} required />
+                  </div>
+                </div>
+                <div className="sp-ws-preview">
+                  <Monitor size={11}/> {form.wsProtocol}://{form.server || "..."}:{form.wsPort}/ws
+                </div>
+                <p className="sp-settings-label" style={{ marginTop: 6 }}>UI Preferences</p>
+                <div className="sp-prefs-list">
+                  <ToggleRow label="Fullscreen Mode"       k="fullscreen"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                  <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                  <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                  <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                </div>
+                <button type="submit" className="sp-login-btn">
+                  <Phone size={14}/> {activeConfig ? "Save & Reconnect" : "Save & Connect"}
+                </button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="sp-workspace">
@@ -453,6 +657,7 @@ export default function Softphone({
                     <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                     <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                     <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                    <ToggleRow label="Fullscreen Mode"       k="fullscreen"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                   </div>
 
                   <p className="sp-col-title" style={{ marginTop: 12 }}>Panel Position</p>

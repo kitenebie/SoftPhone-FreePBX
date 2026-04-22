@@ -590,6 +590,127 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; color: #e2e8f0; 
 }
 .sp-offset-field input::-webkit-inner-spin-button { opacity: 0.4; }
 
+/* ── Fullscreen Mode ──────────────────────────────────────────── */
+.sp-fs-workspace {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 8, 18, 0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  z-index: 9500;
+  pointer-events: auto;
+  color: #e2e8f0;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* Header */
+.sp-fs-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  height: 48px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+}
+.sp-statusbar-error { font-size: 0.75rem; color: #f87171; flex: 1; }
+.sp-fs-settings-active { color: #818cf8 !important; background: rgba(79,70,229,0.15) !important; }
+
+/* Body — 2 columns (+ optional 3rd) */
+.sp-fs-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sp-fs-col {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+
+.sp-fs-col-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #818cf8;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+/* Column 1 — Dialer */
+.sp-fs-dialer-col {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+/* Column 2 — Video */
+.sp-fs-video-col {
+  flex: 1;
+  border-right: none;
+}
+.sp-fs-video-wrap {
+  flex: 1;
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  min-height: 0;
+}
+.sp-fs-video-wrap .sp-video-remote { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sp-fs-video-wrap .sp-video-local {
+  position: absolute; bottom: 12px; right: 12px;
+  width: 120px; height: 90px;
+  border-radius: 8px; object-fit: cover;
+  border: 2px solid rgba(79,70,229,0.6);
+}
+.sp-fs-video-wrap .sp-video-placeholder {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px; color: #475569; font-size: 0.9rem;
+  background: rgba(0,0,0,0.6);
+}
+
+/* Column 3 — Settings (slide in from right) */
+.sp-fs-settings-col {
+  width: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.3s cubic-bezier(0.4,0,0.2,1);
+  border-left: 1px solid rgba(255,255,255,0.06);
+  border-right: none;
+}
+.sp-fs-settings-col.open { width: 300px; }
+.sp-fs-settings-body {
+  width: 300px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+/* Incoming call banner inside fullscreen dialer col */
+.sp-fs-incoming {
+  background: rgba(79,70,229,0.08);
+  border: 1px solid rgba(79,70,229,0.2);
+  border-radius: 12px;
+  margin: 12px 14px 0;
+  padding: 16px;
+  text-align: center;
+  animation: slideUp 0.3s ease;
+}
+
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

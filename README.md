@@ -54,6 +54,9 @@ Browser  ◀──WebRTC──▶  FreePBX/Asterisk  ◀──RTP──▶  Othe
   <img src="https://raw.githubusercontent.com/kitenebie/SoftPhone-FreePBX/main/src/assets/image_3.png" width="48%" alt="Video Call" />
   <img src="https://raw.githubusercontent.com/kitenebie/SoftPhone-FreePBX/main/src/assets/image_4.png" width="48%" alt="Dialer Panel" />
 </p>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kitenebie/SoftPhone-FreePBX/main/src/assets/image_5.png" width="48%" alt="FullScreen Panel" />
+</p>
 
 ---
 
@@ -287,10 +290,10 @@ You can use this package directly in the browser via CDN — no build tools requ
 
 ```html
 <!-- Styles -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/juv-ksip-softphone@latest/dist/juv-ksip-softphone.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/juv-ksip-softphone@1.0.29/dist/juv-ksip-softphone.css">
 
 <!-- Softphone — fully self-contained, no other scripts needed -->
-<script src="https://cdn.jsdelivr.net/npm/juv-ksip-softphone@latest/dist/juv-ksip-softphone.cdn.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/juv-ksip-softphone@1.0.29/dist/juv-ksip-softphone.cdn.js"></script>
 ```
 
 ### 2. Mount the softphone
