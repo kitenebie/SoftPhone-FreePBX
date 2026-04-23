@@ -76,7 +76,125 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
     attempt();
   }
 
-  // ── Wire a session's stateChange ──────────────────────────────
+  // ── Recording ─────────────────────────────────────────────────
+  const mediaRecorderRef = useRef(null);
+  const recordingChunks  = useRef([]);
+  const recordingConfig  = useRef({ enabled: false, directory: "video/recordings/Ksip", uploadApiUrl: "" });
+  const directoryHandle  = useRef(null);
+  const uploadedFiles    = useRef(new Set()); // Track uploaded files
+
+  function setRecordingConfig(cfg) {
+    recordingConfig.current = { ...recordingConfig.current, ...cfg };
+  }
+
+  function setDirectoryHandle(handle) {
+    directoryHandle.current = handle;
+  }
+
+  function startRecording(session) {
+    if (!recordingConfig.current.enabled) return;
+    const pc = session?.sessionDescriptionHandler?.peerConnection;
+    if (!pc) return;
+
+    try {
+      // Collect all remote + local tracks into one stream
+      const tracks = [];
+      pc.getReceivers().forEach((r) => { if (r.track) tracks.push(r.track); });
+      pc.getSenders().forEach((s)  => { if (s.track) tracks.push(s.track); });
+      if (!tracks.length) return;
+
+      const stream = new MediaStream(tracks);
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+        ? "video/webm;codecs=vp8,opus"
+        : MediaRecorder.isTypeSupported("video/webm")
+        ? "video/webm"
+        : "audio/webm";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recordingChunks.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordingChunks.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const blob = new Blob(recordingChunks.current, { type: mimeType });
+        const ext  = mimeType.startsWith("video") ? "webm" : "webm";
+        const now  = new Date();
+        const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+        const ts   = now.toISOString().replace(/[:.]/g, "-");
+        const filename = `${ts}.${ext}`;
+
+        try {
+          // Save to local directory
+          if (directoryHandle.current) {
+            const fileHandle = await directoryHandle.current.getFileHandle(filename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+          } else {
+            // Fallback to download
+            const dir  = recordingConfig.current.directory || "video/recordings/Ksip";
+            const fullPath = `${dir.replace(/[\\/]+$/, "")}/${filename}`;
+            const url = URL.createObjectURL(blob);
+            const a   = document.createElement("a");
+            a.href     = url;
+            a.download = fullPath;
+            a.click();
+            URL.revokeObjectURL(url);
+          }
+
+          // Upload to API if URL is configured and file not already uploaded today
+          const uploadUrl = recordingConfig.current.uploadApiUrl;
+          if (uploadUrl && !uploadedFiles.current.has(dateStr)) {
+            try {
+              const formData = new FormData();
+              formData.append('recording', blob, filename);
+              formData.append('date', dateStr);
+              formData.append('timestamp', ts);
+              formData.append('extension', sipConfig.extension || 'unknown');
+
+              const response = await fetch(uploadUrl, {
+                method: 'POST',
+                body: formData,
+              });
+
+              if (response.ok) {
+                uploadedFiles.current.add(dateStr);
+                console.log(`Recording uploaded successfully for ${dateStr}`);
+              } else {
+                console.error('Upload failed:', response.statusText);
+              }
+            } catch (uploadErr) {
+              console.error('Upload error:', uploadErr);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to save recording:', err);
+          // Fallback to download on error
+          const dir  = recordingConfig.current.directory || "video/recordings/Ksip";
+          const fullPath = `${dir.replace(/[\\/]+$/, "")}/${filename}`;
+          const url = URL.createObjectURL(blob);
+          const a   = document.createElement("a");
+          a.href     = url;
+          a.download = fullPath;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+        recordingChunks.current = [];
+      };
+
+      recorder.start(1000); // collect chunks every 1s
+      mediaRecorderRef.current = recorder;
+    } catch (_e) { /* recording not supported */ }
+  }
+
+  function stopRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+  }
   function wireSession(session) {
     // Capture the session identity at wire time
     const thisSession = session;
@@ -90,7 +208,10 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
         S.current.callState("active");
         S.current.incomingSession(null);
         attachMedia(thisSession);
+        // Start recording after short delay to ensure tracks are ready
+        setTimeout(() => startRecording(thisSession), 500);
       } else if (state === SessionState.Terminated) {
+        stopRecording();
         playEnd();
         S.current.callState("idle");
         S.current.incomingSession(null);
@@ -229,6 +350,7 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
   function hangup() {
     const s = sessionRef.current;
     if (!s) return;
+    stopRecording();
     playEnd();
     try {
       if (s.state === SessionState.Established) s.bye();
@@ -287,5 +409,6 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
     registered, callState, incomingSession, error, reconnecting,
     localVideoRef, remoteVideoRef, remoteAudioRef,
     call, answer, hangup, mute, toggleVideo,
+    setRecordingConfig, setDirectoryHandle,
   };
 }

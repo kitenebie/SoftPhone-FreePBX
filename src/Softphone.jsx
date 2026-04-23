@@ -6,7 +6,7 @@ import {
   GripHorizontal, Wifi, WifiOff, Loader,
   User, Lock, Server, Hash, Monitor,
   Maximize2, Minimize2, Settings, Grid3x3,
-  SlidersHorizontal, X, LogOut,
+  SlidersHorizontal, X, LogOut, FolderPlus,
 } from "lucide-react";
 import { useSIP } from "./hooks/useSIP.js";
 import { useDraggable } from "./hooks/useDraggable.js";
@@ -84,6 +84,8 @@ export default function Softphone({
   ShowIncomingCallVideoBtn     = true,
   ShowIncomingCallAudio        = true,
   fullscreen                   = false,
+  autoRecord                   = false,
+  recordingDir                 = "video/recordings/Ksip",
   panelPosition: panelPositionProp = "center",
   panelOffset:   panelOffsetProp   = {},
   // SIP config props
@@ -115,6 +117,9 @@ export default function Softphone({
     displayName: saved?.displayName || displayNameProp || "",
     audioCodecs: saved?.audioCodecs || ["PCMU", "PCMA", "opus"],
     videoCodecs: saved?.videoCodecs || ["VP8", "H264"],
+    autoRecord:  saved?.autoRecord  ?? autoRecord,
+    recordingDir: saved?.recordingDir || recordingDir || "video/recordings/Ksip",
+    uploadApiUrl: saved?.uploadApiUrl || "",
   });
 
   const [uiPrefs, setUiPrefs] = useState({
@@ -126,6 +131,7 @@ export default function Softphone({
     ShowIncomingCallVideoBtn: saved?.ShowIncomingCallVideoBtn  ?? ShowIncomingCallVideoBtn,
     ShowIncomingCallAudio:    saved?.ShowIncomingCallAudio     ?? (answerwithVideoCall ? false : ShowIncomingCallAudio),
     fullscreen:               saved?.fullscreen               ?? fullscreen,
+    autoRecord:               saved?.autoRecord               ?? autoRecord,
   });
 
   const [activeConfig, setActiveConfig] = useState(() => {
@@ -143,7 +149,7 @@ export default function Softphone({
   });
 
   const [dialInput,    setDialInput]    = useState("");
-  const [withVideo, setWithVideo] = useState(false);
+  const [withVideo, setWithVideo] = useState(true);
   const [muted,        setMuted]        = useState(false);
   const [videoMuted,   setVideoMuted]   = useState(false);
   const [expanded,     setExpanded]     = useState(false);
@@ -152,18 +158,83 @@ export default function Softphone({
   const [showSettings, setShowSettings] = useState(false);
   const [fabOpacity,   setFabOpacity]   = useState(1);
   const [showFsSettings, setShowFsSettings] = useState(false);
+  const [showDirModal, setShowDirModal] = useState(false);
+  const [dirHandle, setDirHandle] = useState(null);
 
   const sipConfig = activeConfig ?? { server: "", wsServer: "", extension: "", password: "" };
   const {
     registered, callState, incomingSession, error, reconnecting,
     localVideoRef, remoteVideoRef, remoteAudioRef,
-    call, answer, hangup, mute, toggleVideo,
+    call, answer, hangup, mute, toggleVideo, setRecordingConfig, setDirectoryHandle,
   } = useSIP(sipConfig);
 
   const fabPanel      = useDraggable({ x: window.innerWidth - 90, y: 24 });
   const videoSize     = useResizable({ w: 360, h: 280 }, { w: 260, h: 200 });
   const videoNodeRef  = useRef(null);
   const dialerNodeRef = useRef(null);
+
+  // Sync recording config to useSIP whenever settings change
+  useEffect(() => {
+    setRecordingConfig({ 
+      enabled: uiPrefs.autoRecord, 
+      directory: form.recordingDir,
+      uploadApiUrl: form.uploadApiUrl 
+    });
+  }, [uiPrefs.autoRecord, form.recordingDir, form.uploadApiUrl]);
+
+  // Check directory access when auto-record is enabled
+  useEffect(() => {
+    const saved = loadConfig();
+    if (uiPrefs.autoRecord && !dirHandle && !saved?.hasDirectoryAccess) {
+      setShowDirModal(true);
+    }
+  }, [uiPrefs.autoRecord, dirHandle]);
+
+  // Save recording directory changes to localStorage
+  useEffect(() => {
+    const saved = loadConfig();
+    if (saved && form.recordingDir !== saved.recordingDir) {
+      saveConfig({ ...saved, recordingDir: form.recordingDir });
+    }
+  }, [form.recordingDir]);
+
+  const handleCreateDirectory = async () => {
+    try {
+      const handle = await window.showDirectoryPicker({
+        mode: 'readwrite',
+        startIn: 'downloads'
+      });
+      
+      // Create nested folder structure: video/recordings/Ksip
+      let currentHandle = handle;
+      const folders = ['video', 'recordings', 'Ksip'];
+      
+      for (const folderName of folders) {
+        currentHandle = await currentHandle.getDirectoryHandle(folderName, { create: true });
+      }
+      
+      setDirHandle(currentHandle);
+      setDirectoryHandle(currentHandle);
+      setShowDirModal(false);
+      
+      // Save directory handle state to localStorage
+      const saved = loadConfig() || {};
+      saveConfig({ ...saved, hasDirectoryAccess: true });
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Directory selection failed:', err);
+      }
+    }
+  };
+
+  const handleCancelDirectory = () => {
+    setShowDirModal(false);
+    setUiPrefs((p) => ({ ...p, autoRecord: false }));
+    
+    // Update localStorage
+    const saved = loadConfig() || {};
+    saveConfig({ ...saved, autoRecord: false });
+  };
 
   // Reset withVideo to false when call ends so dialer doesn't stay on video mode
   useEffect(() => {
@@ -189,6 +260,8 @@ export default function Softphone({
       displayName: form.displayName,
       audioCodecs: form.audioCodecs,
       videoCodecs: form.videoCodecs,
+      recordingDir: form.recordingDir,
+      uploadApiUrl: form.uploadApiUrl,
       panelPosition,
       panelOffset,
       // Save all uiPrefs EXCEPT enabledBubble and showSetting
@@ -213,6 +286,13 @@ export default function Softphone({
       const next = { ...p, [key]: val };
       if (key === "answerwithVideoCall" && val) next.ShowIncomingCallAudio = false;
       if (key === "ShowIncomingCallAudio" && val) next.answerwithVideoCall = false;
+      
+      // Save to localStorage immediately for fullscreen and autoRecord
+      if (key === "fullscreen" || key === "autoRecord") {
+        const saved = loadConfig() || {};
+        saveConfig({ ...saved, [key]: val });
+      }
+      
       return next;
     });
   };
@@ -314,7 +394,7 @@ export default function Softphone({
               <label className="sp-toggle">
                 <input type="checkbox" checked={withVideo} onChange={(e) => setWithVideo(e.target.checked)}/>
                 <span className="sp-toggle-track"/>
-                <Video size={12}/><span>Video</span>
+                <Video size={16}/><span>Video</span>
               </label>
               <button className="sp-call-btn"
                 onClick={() => { if (dialInput && registered && callState === "idle") call(dialInput, withVideo); }}
@@ -343,8 +423,8 @@ export default function Softphone({
               )}
               {callState === "idle" && (
                 <div className="sp-video-placeholder">
-                  <Phone size={32} style={{ opacity: 0.2 }}/>
-                  <span style={{ opacity: 0.4 }}>No active call</span>
+                  <Phone size={32} style={{ opacity: 0.2, color: "white"  }}/>
+                  <span style={{ opacity: 0.4, color: "white" }}>No active call</span>
                 </div>
               )}
             </div>
@@ -355,7 +435,7 @@ export default function Softphone({
                 </button>
                 <button className="sp-ctrl-btn sp-ctrl-hangup" onClick={hangup}><PhoneOff size={18}/></button>
                 <button className={`sp-ctrl-btn ${videoMuted ? "active" : ""}`} onClick={handleVideoMute}>
-                  {videoMuted ? <VideoOff size={16}/> : <Video size={16}/>}
+                  {videoMuted ? <VideoOff size={16}/> : <Video size={16}/>} 
                 </button>
               </div>
             )}
@@ -419,7 +499,30 @@ export default function Softphone({
                   <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                   <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                   <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                  <ToggleRow label="Auto Record Calls"     k="autoRecord"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                 </div>
+                {uiPrefs.autoRecord && (
+                  <div className="sp-field" style={{ marginTop: 8 }}>
+                    <Server size={14}/>
+                    <input
+                      placeholder="video/recordings/Ksip"
+                      type="text"
+                      value={form.recordingDir}
+                      onChange={(e) => setForm((f) => ({ ...f, recordingDir: e.target.value }))}
+                    />
+                  </div>
+                )}
+                {uiPrefs.autoRecord && (
+                  <div className="sp-field" style={{ marginTop: 8 }}>
+                    <Server size={14}/>
+                    <input
+                      placeholder="Upload API URL (optional)"
+                      type="url"
+                      value={form.uploadApiUrl}
+                      onChange={(e) => setForm((f) => ({ ...f, uploadApiUrl: e.target.value }))}
+                    />
+                  </div>
+                )}
                 <p className="sp-settings-label" style={{ marginTop: 10 }}>Audio Codecs</p>
                 {AUDIO_CODECS.map((c) => (
                   <label key={c} className="sp-codec-item">
@@ -449,6 +552,39 @@ export default function Softphone({
   return (
     <div className="sp-workspace">
       <audio ref={remoteAudioRef} autoPlay />
+
+      {/* Directory Permission Modal */}
+      {showDirModal && (
+        <>
+          <div className="sp-settings-backdrop" onClick={handleCancelDirectory}/>
+          <div className="sp-dir-modal">
+            <div className="sp-dir-modal-header">
+              <FolderPlus size={20}/>
+              <span>Recording Directory Required</span>
+            </div>
+            <div className="sp-dir-modal-body">
+              <p>Auto-recording is enabled but no directory is selected.</p>
+              <p>Would you like to select a directory for saving call recordings?</p>
+              <div className="sp-dir-modal-note">
+                <strong>Note:</strong> After selecting a folder, the system will automatically create:
+                <code style={{ display: 'block', marginTop: '6px', padding: '4px 8px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px', fontSize: '0.8rem' }}>
+                  [selected-folder]/video/recordings/Ksip/
+                </code>
+                All recordings will be saved there.
+              </div>
+            </div>
+            <div className="sp-dir-modal-actions">
+              <button className="sp-dir-btn sp-dir-cancel" onClick={handleCancelDirectory}>
+                Cancel
+              </button>
+              <button className="sp-dir-btn sp-dir-create" onClick={handleCreateDirectory}>
+                <FolderPlus size={16}/>
+                Select Directory
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Incoming Call Overlay */}
       {callState === "incoming" && (
@@ -672,7 +808,33 @@ export default function Softphone({
                     <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                     <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                     <ToggleRow label="Fullscreen Mode"       k="fullscreen"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                    <ToggleRow label="Auto Record Calls"     k="autoRecord"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
                   </div>
+
+                  {uiPrefs.autoRecord && (
+                    <>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>Recording Directory</p>
+                      <div className="sp-field">
+                        <Server size={14}/>
+                        <input
+                          placeholder="video/recordings/Ksip"
+                          type="text"
+                          value={form.recordingDir}
+                          onChange={(e) => setForm((f) => ({ ...f, recordingDir: e.target.value }))}
+                        />
+                      </div>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>Upload API URL (optional)</p>
+                      <div className="sp-field">
+                        <Server size={14}/>
+                        <input
+                          placeholder="https://api.example.com/upload-recording"
+                          type="url"
+                          value={form.uploadApiUrl}
+                          onChange={(e) => setForm((f) => ({ ...f, uploadApiUrl: e.target.value }))}
+                        />
+                      </div>
+                    </>
+                  )}
 
                   <p className="sp-col-title" style={{ marginTop: 12 }}>Panel Position</p>
                   <div className="sp-position-grid">

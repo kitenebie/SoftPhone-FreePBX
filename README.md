@@ -119,6 +119,14 @@ The softphone renders as a transparent overlay with a floating phone button (top
 | `password` | `string` | `""` | SIP extension password |
 | `displayName` | `string` | `""` | Caller ID display name (optional) |
 
+### Recording Props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `autoRecord` | `boolean` | `false` | Enable automatic recording of all calls |
+| `recordingDir` | `string` | `"video/recordings/Ksip"` | Directory path for saved recordings |
+| `uploadApiUrl` | `string` | `""` | API endpoint URL for uploading recordings (optional) |
+
 ### UI Props
 
 | Prop | Type | Default | Description |
