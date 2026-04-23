@@ -3,7 +3,7 @@
 A professional, draggable, resizable, transparent React WebRTC SIP softphone component for FreePBX / Asterisk. Supports audio and video calls, incoming call handling, codec selection, and a global `ksipcall` API for triggering calls from anywhere in your app.
 
 ## WEB DOCUMENTATION
-**Visit Documentation:** [php-ksip-telnet & juv-ksip-softphone Documentation](https://kitenebie.github.io/FreePBX-Console/)
+**Visit Documentation:** [php-ksip-telnet & juv-ksip-softphone Documentation](https://kitenebie.github.io/FreePBX-Console/#sp-intro)
 
 **Author:** Kenneth H. Gimpao
 ---

@@ -95,6 +95,33 @@ export default function Softphone({
   extension:   extensionProp   = "",
   password:    passwordProp    = "",
   displayName: displayNameProp = "",
+  // Settings configuration props
+  settingConfigToggles = {
+    bubble: true,
+    dialer: true,
+    settings: true,
+    opacity: true,
+    autoAnswerVideo: true,
+    answerButtonVideo: true,
+    answerButtonAudio: true,
+    fullscreen: true,
+    autoRecording: true,
+  },
+  settingConfigTogglesActiveState = {
+    bubble: true,
+    dialer: true,
+    settings: true,
+    opacity: true,
+    autoAnswerVideo: false,
+    answerButtonVideo: true,
+    answerButtonAudio: true,
+    fullscreen: false,
+    autoRecording: false,
+  },
+  settingConfigCodecs = {
+    audio: { visible: true, codecs: ["PCMU", "PCMA", "G722", "G729", "opus"] },
+    video: { visible: true, codecs: ["VP8", "VP9", "H264", "H265", "AV1"] },
+  },
 }) {
   const saved = loadConfig();
 
@@ -123,15 +150,15 @@ export default function Softphone({
   });
 
   const [uiPrefs, setUiPrefs] = useState({
-    enabledBubble:            enabledBubble,
-    showDialer:               saved?.showDialer               ?? showDialerProp,
-    showSetting:              showSettingProp,
-    showOpacity:              saved?.showOpacity              ?? showOpacityProp,
-    answerwithVideoCall:      saved?.answerwithVideoCall       ?? answerwithVideoCall,
-    ShowIncomingCallVideoBtn: saved?.ShowIncomingCallVideoBtn  ?? ShowIncomingCallVideoBtn,
-    ShowIncomingCallAudio:    saved?.ShowIncomingCallAudio     ?? (answerwithVideoCall ? false : ShowIncomingCallAudio),
-    fullscreen:               saved?.fullscreen               ?? fullscreen,
-    autoRecord:               saved?.autoRecord               ?? autoRecord,
+    enabledBubble:            settingConfigTogglesActiveState.bubble ?? enabledBubble,
+    showDialer:               saved?.showDialer ?? settingConfigTogglesActiveState.dialer ?? showDialerProp,
+    showSetting:              settingConfigTogglesActiveState.settings ?? showSettingProp,
+    showOpacity:              saved?.showOpacity ?? settingConfigTogglesActiveState.opacity ?? showOpacityProp,
+    answerwithVideoCall:      saved?.answerwithVideoCall ?? settingConfigTogglesActiveState.autoAnswerVideo ?? answerwithVideoCall,
+    ShowIncomingCallVideoBtn: saved?.ShowIncomingCallVideoBtn ?? settingConfigTogglesActiveState.answerButtonVideo ?? ShowIncomingCallVideoBtn,
+    ShowIncomingCallAudio:    saved?.ShowIncomingCallAudio ?? (settingConfigTogglesActiveState.autoAnswerVideo ? false : (settingConfigTogglesActiveState.answerButtonAudio ?? ShowIncomingCallAudio)),
+    fullscreen:               saved?.fullscreen ?? settingConfigTogglesActiveState.fullscreen ?? fullscreen,
+    autoRecord:               saved?.autoRecord ?? settingConfigTogglesActiveState.autoRecording ?? autoRecord,
   });
 
   const [activeConfig, setActiveConfig] = useState(() => {
@@ -160,6 +187,14 @@ export default function Softphone({
   const [showFsSettings, setShowFsSettings] = useState(false);
   const [showDirModal, setShowDirModal] = useState(false);
   const [dirHandle, setDirHandle] = useState(null);
+
+  // Filter codecs based on settingConfigCodecs
+  const availableAudioCodecs = settingConfigCodecs.audio.visible 
+    ? AUDIO_CODECS.filter(c => settingConfigCodecs.audio.codecs.includes(c))
+    : [];
+  const availableVideoCodecs = settingConfigCodecs.video.visible
+    ? VIDEO_CODECS.filter(c => settingConfigCodecs.video.codecs.includes(c))
+    : [];
 
   const sipConfig = activeConfig ?? { server: "", wsServer: "", extension: "", password: "" };
   const {
@@ -235,11 +270,6 @@ export default function Softphone({
     const saved = loadConfig() || {};
     saveConfig({ ...saved, autoRecord: false });
   };
-
-  // Reset withVideo to false when call ends so dialer doesn't stay on video mode
-  useEffect(() => {
-    if (callState === "idle") setWithVideo(false);
-  }, [callState]);
 
   useEffect(() => {
     const unsub = ksipcall._subscribe(({ target, video }) => {
@@ -495,11 +525,11 @@ export default function Softphone({
                 </div>
                 <p className="sp-settings-label" style={{ marginTop: 6 }}>UI Preferences</p>
                 <div className="sp-prefs-list">
-                  <ToggleRow label="Fullscreen Mode"       k="fullscreen"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                  <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                  <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                  <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                  <ToggleRow label="Auto Record Calls"     k="autoRecord"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                  {settingConfigToggles.fullscreen && <ToggleRow label="Fullscreen Mode"       k="fullscreen"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                  {settingConfigToggles.autoAnswerVideo && <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                  {settingConfigToggles.answerButtonVideo && <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                  {settingConfigToggles.answerButtonAudio && <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                  {settingConfigToggles.autoRecording && <ToggleRow label="Auto Record Calls"     k="autoRecord"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
                 </div>
                 {uiPrefs.autoRecord && (
                   <div className="sp-field" style={{ marginTop: 8 }}>
@@ -524,14 +554,14 @@ export default function Softphone({
                   </div>
                 )}
                 <p className="sp-settings-label" style={{ marginTop: 10 }}>Audio Codecs</p>
-                {AUDIO_CODECS.map((c) => (
+                {availableAudioCodecs.map((c) => (
                   <label key={c} className="sp-codec-item">
                     <input type="checkbox" checked={form.audioCodecs.includes(c)} onChange={() => toggleCodec("audio", c)}/>
                     {c}
                   </label>
                 ))}
                 <p className="sp-settings-label" style={{ marginTop: 10 }}>Video Codecs</p>
-                {VIDEO_CODECS.map((c) => (
+                {availableVideoCodecs.map((c) => (
                   <label key={c} className="sp-codec-item">
                     <input type="checkbox" checked={form.videoCodecs.includes(c)} onChange={() => toggleCodec("video", c)}/>
                     {c}
@@ -770,20 +800,28 @@ export default function Softphone({
                 {/* Column 2 — Codecs + Opacity */}
                 <div className="sp-settings-col">
                   <p className="sp-col-title">Codecs</p>
-                  <p className="sp-settings-label">Audio</p>
-                  {AUDIO_CODECS.map((c) => (
-                    <label key={c} className="sp-codec-item">
-                      <input type="checkbox" checked={form.audioCodecs.includes(c)} onChange={() => toggleCodec("audio", c)}/>
-                      {c}
-                    </label>
-                  ))}
-                  <p className="sp-settings-label" style={{ marginTop: 10 }}>Video</p>
-                  {VIDEO_CODECS.map((c) => (
-                    <label key={c} className="sp-codec-item">
-                      <input type="checkbox" checked={form.videoCodecs.includes(c)} onChange={() => toggleCodec("video", c)}/>
-                      {c}
-                    </label>
-                  ))}
+                  {settingConfigCodecs.audio.visible && (
+                    <>
+                      <p className="sp-settings-label">Audio</p>
+                      {availableAudioCodecs.map((c) => (
+                        <label key={c} className="sp-codec-item">
+                          <input type="checkbox" checked={form.audioCodecs.includes(c)} onChange={() => toggleCodec("audio", c)}/>
+                          {c}
+                        </label>
+                      ))}
+                    </>
+                  )}
+                  {settingConfigCodecs.video.visible && (
+                    <>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>Video</p>
+                      {availableVideoCodecs.map((c) => (
+                        <label key={c} className="sp-codec-item">
+                          <input type="checkbox" checked={form.videoCodecs.includes(c)} onChange={() => toggleCodec("video", c)}/>
+                          {c}
+                        </label>
+                      ))}
+                    </>
+                  )}
                   {uiPrefs.showOpacity && (
                     <>
                       <p className="sp-settings-label" style={{ marginTop: 10 }}>
@@ -800,15 +838,15 @@ export default function Softphone({
                 <div className="sp-settings-col">
                   <p className="sp-col-title">UI Preferences</p>
                   <div className="sp-prefs-list">
-                    <ToggleRow label="Show Bubble"           k="enabledBubble"            uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                    <ToggleRow label="Show Dialer Button"    k="showDialer"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                    <ToggleRow label="Show Settings Button"  k="showSetting"              uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                    <ToggleRow label="Show Opacity Button"   k="showOpacity"              uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                    <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                    <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                    <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                    <ToggleRow label="Fullscreen Mode"       k="fullscreen"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
-                    <ToggleRow label="Auto Record Calls"     k="autoRecord"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>
+                    {settingConfigToggles.bubble && <ToggleRow label="Show Bubble"           k="enabledBubble"            uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.dialer && <ToggleRow label="Show Dialer Button"    k="showDialer"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.settings && <ToggleRow label="Show Settings Button"  k="showSetting"              uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.opacity && <ToggleRow label="Show Opacity Button"   k="showOpacity"              uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.autoAnswerVideo && <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.answerButtonVideo && <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.answerButtonAudio && <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.fullscreen && <ToggleRow label="Fullscreen Mode"       k="fullscreen"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.autoRecording && <ToggleRow label="Auto Record Calls"     k="autoRecord"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
                   </div>
 
                   {uiPrefs.autoRecord && (

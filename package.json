@@ -1,6 +1,6 @@
 {
   "name": "juv-ksip-softphone",
-  "version": "1.0.41",
+  "version": "1.0.44",
   "description": "A React WebRTC SIP softphone component for FreePBX/Asterisk with audio/video calls, auto-recording, and API upload support",
   "type": "module",
   "main": "./dist/juv-ksip-softphone.js",
