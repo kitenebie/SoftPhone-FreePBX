@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@juv/codego-react-ui": "^4.0.0",
-    "juv-ksip-softphone": "^1.0.37",
+    "juv-ksip-softphone": "^1.0.41",
     "lucide-react": ">=0.400.0",
     "sip.js": "^0.21.2"
   },
