@@ -4,6 +4,7 @@ import incomingRingtone from "../assets/ringtones/incoming_call.mp3";
 import endCallSound    from "../assets/ringtones/end_call.mp3";
 
 const RECONNECT_DELAY = 3000;
+const REGISTRATION_EXPIRES = 600; // 10 minutes (600 seconds)
 
 export function useSIP({ server, wsServer, extension, password, displayName }) {
   const [registered,      setRegistered]      = useState(false);
@@ -82,6 +83,7 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
   const recordingConfig  = useRef({ enabled: false, directory: "video/recordings/Ksip", uploadApiUrl: "" });
   const directoryHandle  = useRef(null);
   const uploadedFiles    = useRef(new Set()); // Track uploaded files
+  const failedUploads    = useRef([]); // Track failed uploads for retry
 
   function setRecordingConfig(cfg) {
     recordingConfig.current = { ...recordingConfig.current, ...cfg };
@@ -147,27 +149,7 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
           // Upload to API if URL is configured and file not already uploaded today
           const uploadUrl = recordingConfig.current.uploadApiUrl;
           if (uploadUrl && !uploadedFiles.current.has(dateStr)) {
-            try {
-              const formData = new FormData();
-              formData.append('recording', blob, filename);
-              formData.append('date', dateStr);
-              formData.append('timestamp', ts);
-              formData.append('extension', sipConfig.extension || 'unknown');
-
-              const response = await fetch(uploadUrl, {
-                method: 'POST',
-                body: formData,
-              });
-
-              if (response.ok) {
-                uploadedFiles.current.add(dateStr);
-                console.log(`Recording uploaded successfully for ${dateStr}`);
-              } else {
-                console.error('Upload failed:', response.statusText);
-              }
-            } catch (uploadErr) {
-              console.error('Upload error:', uploadErr);
-            }
+            await uploadRecording(blob, filename, dateStr, ts, uploadUrl);
           }
         } catch (err) {
           console.error('Failed to save recording:', err);
@@ -193,6 +175,56 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;
+    }
+  }
+
+  // Upload recording with retry on failure
+  async function uploadRecording(blob, filename, dateStr, timestamp, uploadUrl, retryCount = 0) {
+    const maxRetries = 3;
+    const retryDelay = 5000; // 5 seconds
+
+    try {
+      const formData = new FormData();
+      formData.append('recording', blob, filename);
+      formData.append('date', dateStr);
+      formData.append('timestamp', timestamp);
+      formData.append('extension', configRef.current.extension || 'unknown');
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        uploadedFiles.current.add(dateStr);
+        console.log(`✅ Recording uploaded successfully for ${dateStr}`);
+        
+        // Remove from failed queue if it was there
+        failedUploads.current = failedUploads.current.filter(f => f.dateStr !== dateStr);
+      } else {
+        throw new Error(`Upload failed with status: ${response.status}`);
+      }
+    } catch (uploadErr) {
+      console.error(`❌ Upload error (attempt ${retryCount + 1}/${maxRetries}):`, uploadErr.message);
+      
+      // Retry logic
+      if (retryCount < maxRetries) {
+        console.log(`⏳ Retrying upload in ${retryDelay / 1000} seconds...`);
+        setTimeout(() => {
+          uploadRecording(blob, filename, dateStr, timestamp, uploadUrl, retryCount + 1);
+        }, retryDelay);
+      } else {
+        // Max retries reached - add to failed queue
+        console.error(`❌ Upload failed after ${maxRetries} attempts. Saved to retry queue.`);
+        failedUploads.current.push({
+          blob,
+          filename,
+          dateStr,
+          timestamp,
+          uploadUrl,
+          failedAt: new Date().toISOString(),
+        });
+      }
     }
   }
   function wireSession(session) {
@@ -271,10 +303,26 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
       .then(() => {
         if (unmountedRef.current) return;
         S.current.reconnecting(false);
-        const reg = new Registerer(ua);
+        const reg = new Registerer(ua, {
+          expires: REGISTRATION_EXPIRES, // Re-register every 10 minutes
+        });
         registererRef.current = reg;
         reg.stateChange.addListener((s) => {
+          console.log('📡 Registration state:', s);
           S.current.registered(s === "Registered");
+          
+          // If unregistered unexpectedly, try to re-register
+          if (s === "Unregistered" && !unmountedRef.current) {
+            console.log('⚠️ Unexpected unregistration, attempting to re-register...');
+            setTimeout(() => {
+              if (registererRef.current && !unmountedRef.current) {
+                registererRef.current.register().catch((err) => {
+                  console.error('❌ Re-registration failed:', err);
+                  S.current.error(`Re-registration failed: ${err.message}`);
+                });
+              }
+            }, 2000);
+          }
         });
         return reg.register();
       })

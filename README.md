@@ -130,6 +130,14 @@ The softphone renders as a transparent overlay with a floating phone button (top
 | `recordingDir` | `string` | `"video/recordings/Ksip"` | Directory path for saved recordings |
 | `uploadApiUrl` | `string` | `""` | API endpoint URL for uploading recordings (optional) |
 
+### Settings Configuration Props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `settingConfigToggles` | `object` | all `true` | Controls which toggles are visible in settings UI |
+| `settingConfigTogglesActiveState` | `object` | varies | Sets initial active state for toggles |
+| `settingConfigCodecs` | `object` | all visible | Controls codec visibility and available options |
+
 ### UI Props
 
 | Prop | Type | Default | Description |
@@ -218,6 +226,106 @@ Props are used as **initial defaults**. If the user has previously saved a confi
   wsPort="8089"
   extension="1001"
   password="mypassword"
+/>
+```
+
+### Settings Configuration
+
+```jsx
+<Softphone
+  settingConfigToggles={{
+    bubble: true,
+    dialer: true,
+    settings: false,  // Hide settings toggle
+    opacity: true,
+    autoAnswerVideo: true,
+    answerButtonVideo: false,  // Hide video answer button toggle
+    answerButtonAudio: true,
+    fullscreen: true,
+    autoRecording: true,
+  }}
+  settingConfigTogglesActiveState={{
+    bubble: true,
+    dialer: true,
+    settings: true,
+    opacity: true,
+    autoAnswerVideo: true,  // Start with auto-answer video ON
+    answerButtonVideo: true,
+    answerButtonAudio: false,
+    fullscreen: false,
+    autoRecording: true,  // Start with recording ON
+  }}
+  settingConfigCodecs={{
+    audio: { visible: true, codecs: ["PCMU", "PCMA"] },  // Only show these 2
+    video: { visible: false, codecs: ["VP8", "H264"] },  // Hide video codecs section
+  }}
+/>
+```
+
+### Auto Recording with API Upload
+
+```jsx
+<Softphone
+  autoRecord={true}
+  recordingDir="video/recordings/Ksip"
+  uploadApiUrl="https://your-domain.com/api/recordings/upload"
+/>
+```
+
+### Complete Example with All Features
+
+```jsx
+<Softphone
+  // SIP Connection
+  server="192.168.1.100"
+  wsProtocol="ws"
+  wsPort="8088"
+  extension="1001"
+  password="mypassword"
+  displayName="John Doe"
+  
+  // UI Controls
+  enabledBubble={true}
+  showDialer={true}
+  showSetting={true}
+  showOpacity={true}
+  answerwithVideoCall={false}
+  ShowIncomingCallVideoBtn={true}
+  ShowIncomingCallAudio={true}
+  fullscreen={false}
+  
+  // Recording
+  autoRecord={true}
+  recordingDir="video/recordings/Ksip"
+  uploadApiUrl="https://your-domain.com/api/recordings/upload"
+  
+  // Settings Configuration
+  settingConfigToggles={{
+    bubble: true,
+    dialer: true,
+    settings: true,
+    opacity: true,
+    autoAnswerVideo: true,
+    answerButtonVideo: true,
+    answerButtonAudio: true,
+    fullscreen: true,
+    autoRecording: true,
+  }}
+  settingConfigTogglesActiveState={{
+    bubble: true,
+    dialer: true,
+    settings: true,
+    opacity: true,
+    autoAnswerVideo: false,
+    answerButtonVideo: true,
+    answerButtonAudio: true,
+    fullscreen: false,
+    autoRecording: true,
+  }}
+  settingConfigCodecs={{
+    audio: { visible: true, codecs: ["PCMU", "PCMA", "opus"] },
+    video: { visible: true, codecs: ["VP8", "H264"] },
+  }}
 />
 ```
 
@@ -412,6 +520,46 @@ asterisk -rx "pjsip reload"
 | ⚙ Settings | Toggle settings & SIP config panel |
 | ≡ Sliders | Quick opacity adjustment (min 30%) |
 
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl + Shift + K` | Toggle settings panel |
+
+---
+
+## Status Toast Notification
+
+A floating status indicator appears at the top-center of the screen showing the current connection state:
+
+| Status | Color | Behavior |
+|---|---|---|
+| **Connected** | 🟢 Green | Auto-hides after 5 seconds |
+| **Reconnecting** | 🟡 Yellow | Stays visible until connected |
+| **Not Connected** | 🔴 Red | Stays visible until connected |
+
+- The status toast includes a settings icon button for quick access to the settings panel
+- Automatically appears when the app loads
+- Shows real-time connection status updates
+- Always visible even when bubble is hidden (can be accessed via `Ctrl + Shift + K`)
+
+### Connection Monitoring
+
+The softphone includes robust connection monitoring to detect server failures:
+
+- **Automatic Re-registration:** SIP registration refreshes every 10 minutes to maintain active connection
+- **Disconnect Detection:** Immediately detects when WebSocket connection is lost
+- **Auto-reconnect:** Attempts to reconnect every 3 seconds when connection is lost
+- **Unexpected Unregistration:** Automatically attempts to re-register if server rejects registration
+- **Long-running Sessions:** Maintains connection health even after hours of being connected without page reload
+
+**Example Scenario:**
+- App connected at 9:00 AM
+- Server goes down at 9:30 AM (30 minutes later)
+- Status toast immediately shows "Reconnecting..." (yellow)
+- Auto-retry every 3 seconds
+- When server comes back online → auto-reconnects → "Connected" (green)
+
 ---
 
 ## localStorage
@@ -420,9 +568,38 @@ Config is automatically saved under the key `sip_softphone_config` and restored 
 - SIP credentials (server, extension, password, display name)
 - WebSocket protocol and port
 - Selected audio/video codecs
-- UI preferences (all toggle states)
+- UI preferences (all toggle states including "Show Bubble")
+- Recording settings (autoRecord, recordingDir, uploadApiUrl)
+- Fullscreen preference
+- Directory access permission state
 
-> `enabledBubble` and `showSetting` are **never saved** to localStorage — they are always controlled by props.
+> `showSetting` is **never saved** to localStorage — it is always controlled by props.
+
+### Example localStorage data:
+
+```json
+{
+  "server": "192.168.1.100",
+  "extension": "1001",
+  "password": "mypassword",
+  "displayName": "John Doe",
+  "wsProtocol": "ws",
+  "wsPort": "8088",
+  "audioCodecs": ["PCMU", "PCMA"],
+  "videoCodecs": ["VP8", "H264"],
+  "enabledBubble": true,
+  "showDialer": true,
+  "showOpacity": true,
+  "answerwithVideoCall": false,
+  "ShowIncomingCallVideoBtn": true,
+  "ShowIncomingCallAudio": true,
+  "fullscreen": false,
+  "autoRecord": true,
+  "recordingDir": "video/recordings/Ksip",
+  "uploadApiUrl": "https://api.example.com/upload",
+  "hasDirectoryAccess": true
+}
+```
 
 
 ---

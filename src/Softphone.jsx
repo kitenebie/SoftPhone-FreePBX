@@ -7,6 +7,8 @@ import {
   User, Lock, Server, Hash, Monitor,
   Maximize2, Minimize2, Settings, Grid3x3,
   SlidersHorizontal, X, LogOut, FolderPlus,
+  MonitorCogIcon,
+  Calculator,
 } from "lucide-react";
 import { useSIP } from "./hooks/useSIP.js";
 import { useDraggable } from "./hooks/useDraggable.js";
@@ -150,7 +152,7 @@ export default function Softphone({
   });
 
   const [uiPrefs, setUiPrefs] = useState({
-    enabledBubble:            settingConfigTogglesActiveState.bubble ?? enabledBubble,
+    enabledBubble:            saved?.enabledBubble ?? settingConfigTogglesActiveState.bubble ?? enabledBubble,
     showDialer:               saved?.showDialer ?? settingConfigTogglesActiveState.dialer ?? showDialerProp,
     showSetting:              settingConfigTogglesActiveState.settings ?? showSettingProp,
     showOpacity:              saved?.showOpacity ?? settingConfigTogglesActiveState.opacity ?? showOpacityProp,
@@ -187,6 +189,7 @@ export default function Softphone({
   const [showFsSettings, setShowFsSettings] = useState(false);
   const [showDirModal, setShowDirModal] = useState(false);
   const [dirHandle, setDirHandle] = useState(null);
+  const [showStatusToast, setShowStatusToast] = useState(true);
 
   // Filter codecs based on settingConfigCodecs
   const availableAudioCodecs = settingConfigCodecs.audio.visible 
@@ -232,6 +235,35 @@ export default function Softphone({
       saveConfig({ ...saved, recordingDir: form.recordingDir });
     }
   }, [form.recordingDir]);
+
+  // Keyboard shortcut: Ctrl + Shift + K to open settings
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
+        e.preventDefault();
+        console.log('🔑 Keyboard shortcut triggered: Ctrl + Shift + K');
+        setShowSettings((s) => {
+          const newState = !s;
+          console.log('⚙️ Settings panel toggled:', newState ? 'OPEN' : 'CLOSE');
+          console.log('📊 Current showSettings state:', s, '→ New state:', newState);
+          return newState;
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Auto-hide status toast when connected
+  useEffect(() => {
+    if (registered) {
+      setShowStatusToast(true);
+      const timer = setTimeout(() => setShowStatusToast(false), 5000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowStatusToast(true);
+    }
+  }, [registered, reconnecting]);
 
   const handleCreateDirectory = async () => {
     try {
@@ -294,9 +326,9 @@ export default function Softphone({
       uploadApiUrl: form.uploadApiUrl,
       panelPosition,
       panelOffset,
-      // Save all uiPrefs EXCEPT enabledBubble and showSetting
+      // Save all uiPrefs EXCEPT showSetting
       ...Object.fromEntries(
-        Object.entries(uiPrefs).filter(([k]) => k !== "enabledBubble" && k !== "showSetting")
+        Object.entries(uiPrefs).filter(([k]) => k !== "showSetting")
       ),
     };
     saveConfig(config);
@@ -317,8 +349,8 @@ export default function Softphone({
       if (key === "answerwithVideoCall" && val) next.ShowIncomingCallAudio = false;
       if (key === "ShowIncomingCallAudio" && val) next.answerwithVideoCall = false;
       
-      // Save to localStorage immediately for fullscreen and autoRecord
-      if (key === "fullscreen" || key === "autoRecord") {
+      // Save to localStorage immediately for all UI prefs except showSetting
+      if (key !== "showSetting") {
         const saved = loadConfig() || {};
         saveConfig({ ...saved, [key]: val });
       }
@@ -344,7 +376,19 @@ export default function Softphone({
   const showAudioBtn = !effectiveAnswerVideo && uiPrefs.ShowIncomingCallAudio;
   const showVideoBtn = uiPrefs.ShowIncomingCallVideoBtn;
 
-  if (!uiPrefs.enabledBubble) return null;
+  console.log('🔍 Render check:', {
+    enabledBubble: uiPrefs.enabledBubble,
+    fullscreen: uiPrefs.fullscreen,
+    showSettings,
+    showDialer
+  });
+
+  console.log('🔍 Render check:', {
+    enabledBubble: uiPrefs.enabledBubble,
+    fullscreen: uiPrefs.fullscreen,
+    showSettings,
+    showDialer
+  });
 
   // ── Fullscreen Mode ───────────────────────────────────────────
   if (uiPrefs.fullscreen) {
@@ -580,8 +624,252 @@ export default function Softphone({
   }
 
   return (
-    <div className="sp-workspace">
+    <>
+      {/* Status Toast - Always visible */}
+      {showStatusToast && (
+        <div className={`sp-status-toast ${statusColor}`}>
+          <div className="sp-status-toast-content">
+            {registered ? (
+              <>
+                <Wifi size={16}/>
+                <span>Connected - Ext. {activeConfig?.extension}</span>
+              </>
+            ) : reconnecting ? (
+              <>
+                <Loader size={16} className="spin"/>
+                <span>Reconnecting...</span>
+              </>
+            ) : (
+              <>
+                <WifiOff size={16}/>
+                <span>Not connected</span>
+              </>
+            )}
+          </div>
+          <button className="sp-status-toast-btn" onClick={() => setShowSettings(true)} title="Open Settings">
+            <Settings size={16}/>
+          </button>
+        </div>
+      )}
+
+      {/* Settings Panel - Always available via Ctrl+Shift+K */}
+      {showSettings && (
+        <>
+          <div className="sp-settings-backdrop" onClick={() => {
+            console.log('🖱️ Backdrop clicked, closing settings');
+            setShowSettings(false);
+          }}/>
+          <div className="sp-settings-panel">
+            <div className="sp-settings-header">
+              <Settings size={14}/><span>Settings</span>
+              <button className="sp-icon-btn" onClick={() => {
+                console.log('❌ Close button clicked');
+                setShowSettings(false);
+              }} style={{ marginLeft: "auto" }}>
+                <X size={13}/>
+              </button>
+            </div>
+            <div className="sp-settings-body">
+
+              {/* Status row — full width */}
+              <div className="sp-settings-status">
+                <div className={`sp-status-indicator ${statusColor}`}>
+                  {registered ? <Wifi size={12}/> : reconnecting ? <Loader size={12} className="spin"/> : <WifiOff size={12}/>}
+                  <span>{registered ? `Ext. ${activeConfig?.extension}` : reconnecting ? "Reconnecting..." : "Not connected"}</span>
+                </div>
+                {activeConfig && (
+                  <button className="sp-settings-disconnect"
+                    onClick={() => { setActiveConfig(null); setShowSettings(false); }}>
+                    <LogOut size={13}/> Disconnect
+                  </button>
+                )}
+              </div>
+              {error && !reconnecting && <p className="sp-settings-error">&#9888; {error}</p>}
+
+              {/* 3-column grid */}
+              <div className="sp-settings-cols">
+
+                {/* Column 1 — SIP Config */}
+                <div className="sp-settings-col">
+                  <p className="sp-col-title">SIP Configuration</p>
+                  <form className="sp-login-form" onSubmit={handleConnect}>
+                    {[
+                      { icon: <Server size={14}/>, ph: "FreePBX Server IP",   k: "server",      t: "text"     },
+                      { icon: <User   size={14}/>, ph: "Extension",           k: "extension",   t: "text"     },
+                      { icon: <Lock   size={14}/>, ph: "Password",            k: "password",    t: "password" },
+                      { icon: <User   size={14}/>, ph: "Display Name (opt.)", k: "displayName", t: "text"     },
+                    ].map(({ icon, ph, k, t }) => (
+                      <div className="sp-field" key={k}>
+                        {icon}
+                        <input placeholder={ph} type={t} value={form[k]}
+                          onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))}
+                          required={k !== "displayName"} />
+                      </div>
+                    ))}
+                    <div className="sp-proto-row">
+                      <div className="sp-field sp-proto-select">
+                        <Monitor size={14}/>
+                        <select value={form.wsProtocol} onChange={(e) => setForm((f) => ({ ...f, wsProtocol: e.target.value }))}>
+                          <option value="ws">ws:// (8088)</option>
+                          <option value="wss">wss:// (8089)</option>
+                        </select>
+                      </div>
+                      <div className="sp-field sp-proto-port">
+                        <Hash size={14}/>
+                        <input placeholder="Port" value={form.wsPort}
+                          onChange={(e) => setForm((f) => ({ ...f, wsPort: e.target.value }))} required />
+                      </div>
+                    </div>
+                    <div className="sp-ws-preview">
+                      <Monitor size={11}/> {form.wsProtocol}://{form.server || "..."}:{form.wsPort}/ws
+                    </div>
+                    <button type="submit" className="sp-login-btn">
+                      <Phone size={14}/> {activeConfig ? "Save & Reconnect" : "Save & Connect"}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Column 2 — Codecs + Opacity */}
+                <div className="sp-settings-col">
+                  <p className="sp-col-title">Codecs</p>
+                  {settingConfigCodecs.audio.visible && (
+                    <>
+                      <p className="sp-settings-label">Audio</p>
+                      {availableAudioCodecs.map((c) => (
+                        <label key={c} className="sp-codec-item">
+                          <input type="checkbox" checked={form.audioCodecs.includes(c)} onChange={() => toggleCodec("audio", c)}/>
+                          {c}
+                        </label>
+                      ))}
+                    </>
+                  )}
+                  {settingConfigCodecs.video.visible && (
+                    <>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>Video</p>
+                      {availableVideoCodecs.map((c) => (
+                        <label key={c} className="sp-codec-item">
+                          <input type="checkbox" checked={form.videoCodecs.includes(c)} onChange={() => toggleCodec("video", c)}/>
+                          {c}
+                        </label>
+                      ))}
+                    </>
+                  )}
+                  {uiPrefs.showOpacity && (
+                    <>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>
+                        <SlidersHorizontal size={13}/> Opacity — {Math.round(fabOpacity * 100)}%
+                      </p>
+                      <input type="range" min="0.3" max="1" step="0.05"
+                        value={fabOpacity} onChange={(e) => setFabOpacity(Number(e.target.value))}
+                        className="sp-slider"/>
+                    </>
+                  )}
+                </div>
+
+                {/* Column 3 — UI Preferences */}
+                <div className="sp-settings-col">
+                  <p className="sp-col-title">UI Preferences</p>
+                  <div className="sp-prefs-list">
+                    {settingConfigToggles.bubble && <ToggleRow label="Show Bubble"           k="enabledBubble"            uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.dialer && <ToggleRow label="Show Dialer Button"    k="showDialer"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.settings && <ToggleRow label="Show Settings Button"  k="showSetting"              uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.opacity && <ToggleRow label="Show Opacity Button"   k="showOpacity"              uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.autoAnswerVideo && <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.answerButtonVideo && <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.answerButtonAudio && <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.fullscreen && <ToggleRow label="Fullscreen Mode"       k="fullscreen"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.autoRecording && <ToggleRow label="Auto Record Calls"     k="autoRecord"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                  </div>
+
+                  {uiPrefs.autoRecord && (
+                    <>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>Recording Directory</p>
+                      <div className="sp-field">
+                        <Server size={14}/>
+                        <input
+                          placeholder="video/recordings/Ksip"
+                          type="text"
+                          value={form.recordingDir}
+                          onChange={(e) => setForm((f) => ({ ...f, recordingDir: e.target.value }))}
+                        />
+                      </div>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>Upload API URL (optional)</p>
+                      <div className="sp-field">
+                        <Server size={14}/>
+                        <input
+                          placeholder="https://api.example.com/upload-recording"
+                          type="url"
+                          value={form.uploadApiUrl}
+                          onChange={(e) => setForm((f) => ({ ...f, uploadApiUrl: e.target.value }))}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <p className="sp-col-title" style={{ marginTop: 12 }}>Panel Position</p>
+                  <div className="sp-position-grid">
+                    {PANEL_POSITIONS.map((pos) => (
+                      <button
+                        key={pos}
+                        type="button"
+                        title={pos}
+                        className={`sp-pos-btn ${panelPosition === pos ? "active" : ""}`}
+                        onClick={() => setPanelPosition(pos)}
+                      />
+                    ))}
+                  </div>
+                  <p className="sp-settings-label" style={{ marginTop: 10 }}>Offset (px)</p>
+                  <div className="sp-offset-grid">
+                    {["top", "right", "bottom", "left"].map((side) => (
+                      <div key={side} className="sp-offset-field">
+                        <span>{side[0].toUpperCase()}</span>
+                        <input
+                          type="number" min="0" max="999"
+                          value={panelOffset[side]}
+                          onChange={(e) => setPanelOffset((o) => ({ ...o, [side]: Number(e.target.value) }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Show bubble UI only if enabled */}
+      {uiPrefs.enabledBubble && (
+        <div className="sp-workspace">
       <audio ref={remoteAudioRef} autoPlay />
+
+      {/* Status Toast */}
+      {showStatusToast && (
+        <div className={`sp-status-toast ${statusColor}`}>
+          <div className="sp-status-toast-content">
+            {registered ? (
+              <>
+                <Wifi size={16}/>
+                <span>Connected - Ext. {activeConfig?.extension}</span>
+              </>
+            ) : reconnecting ? (
+              <>
+                <Loader size={16} className="spin"/>
+                <span>Reconnecting...</span>
+              </>
+            ) : (
+              <>
+                <WifiOff size={16}/>
+                <span>Not connected</span>
+              </>
+            )}
+          </div>
+          <button className="sp-status-toast-btn" onClick={() => setShowSettings(true)} title="Open Settings">
+            <Settings size={16}/>
+          </button>
+        </div>
+      )}
 
       {/* Directory Permission Modal */}
       {showDirModal && (
@@ -729,11 +1017,204 @@ export default function Softphone({
       {/* Settings Panel — 3-column layout */}
       {showSettings && (
         <>
-          <div className="sp-settings-backdrop" onClick={() => setShowSettings(false)}/>
+          <div className="sp-settings-backdrop" onClick={() => {
+            console.log('🖱️ Backdrop clicked, closing settings');
+            setShowSettings(false);
+          }}/>
           <div className="sp-settings-panel">
             <div className="sp-settings-header">
               <Settings size={14}/><span>Settings</span>
-              <button className="sp-icon-btn" onClick={() => setShowSettings(false)} style={{ marginLeft: "auto" }}>
+              <button className="sp-icon-btn" onClick={() => {
+                console.log('❌ Close button clicked');
+                setShowSettings(false);
+              }} style={{ marginLeft: "auto" }}>
+                <X size={13}/>
+              </button>
+            </div>
+            <div className="sp-settings-body">
+
+              {/* Status row — full width */}
+              <div className="sp-settings-status">
+                <div className={`sp-status-indicator ${statusColor}`}>
+                  {registered ? <Wifi size={12}/> : reconnecting ? <Loader size={12} className="spin"/> : <WifiOff size={12}/>}
+                  <span>{registered ? `Ext. ${activeConfig?.extension}` : reconnecting ? "Reconnecting..." : "Not connected"}</span>
+                </div>
+                {activeConfig && (
+                  <button className="sp-settings-disconnect"
+                    onClick={() => { setActiveConfig(null); setShowSettings(false); }}>
+                    <LogOut size={13}/> Disconnect
+                  </button>
+                )}
+              </div>
+              {error && !reconnecting && <p className="sp-settings-error">&#9888; {error}</p>}
+
+              {/* 3-column grid */}
+              <div className="sp-settings-cols">
+
+                {/* Column 1 — SIP Config */}
+                <div className="sp-settings-col">
+                  <p className="sp-col-title">SIP Configuration</p>
+                  <form className="sp-login-form" onSubmit={handleConnect}>
+                    {[
+                      { icon: <Server size={14}/>, ph: "FreePBX Server IP",   k: "server",      t: "text"     },
+                      { icon: <User   size={14}/>, ph: "Extension",           k: "extension",   t: "text"     },
+                      { icon: <Lock   size={14}/>, ph: "Password",            k: "password",    t: "password" },
+                      { icon: <User   size={14}/>, ph: "Display Name (opt.)", k: "displayName", t: "text"     },
+                    ].map(({ icon, ph, k, t }) => (
+                      <div className="sp-field" key={k}>
+                        {icon}
+                        <input placeholder={ph} type={t} value={form[k]}
+                          onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))}
+                          required={k !== "displayName"} />
+                      </div>
+                    ))}
+                    <div className="sp-proto-row">
+                      <div className="sp-field sp-proto-select">
+                        <Monitor size={14}/>
+                        <select value={form.wsProtocol} onChange={(e) => setForm((f) => ({ ...f, wsProtocol: e.target.value }))}>
+                          <option value="ws">ws:// (8088)</option>
+                          <option value="wss">wss:// (8089)</option>
+                        </select>
+                      </div>
+                      <div className="sp-field sp-proto-port">
+                        <Hash size={14}/>
+                        <input placeholder="Port" value={form.wsPort}
+                          onChange={(e) => setForm((f) => ({ ...f, wsPort: e.target.value }))} required />
+                      </div>
+                    </div>
+                    <div className="sp-ws-preview">
+                      <Monitor size={11}/> {form.wsProtocol}://{form.server || "..."}:{form.wsPort}/ws
+                    </div>
+                    <button type="submit" className="sp-login-btn">
+                      <Phone size={14}/> {activeConfig ? "Save & Reconnect" : "Save & Connect"}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Column 2 — Codecs + Opacity */}
+                <div className="sp-settings-col">
+                  <p className="sp-col-title">Codecs</p>
+                  {settingConfigCodecs.audio.visible && (
+                    <>
+                      <p className="sp-settings-label">Audio</p>
+                      {availableAudioCodecs.map((c) => (
+                        <label key={c} className="sp-codec-item">
+                          <input type="checkbox" checked={form.audioCodecs.includes(c)} onChange={() => toggleCodec("audio", c)}/>
+                          {c}
+                        </label>
+                      ))}
+                    </>
+                  )}
+                  {settingConfigCodecs.video.visible && (
+                    <>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>Video</p>
+                      {availableVideoCodecs.map((c) => (
+                        <label key={c} className="sp-codec-item">
+                          <input type="checkbox" checked={form.videoCodecs.includes(c)} onChange={() => toggleCodec("video", c)}/>
+                          {c}
+                        </label>
+                      ))}
+                    </>
+                  )}
+                  {uiPrefs.showOpacity && (
+                    <>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>
+                        <SlidersHorizontal size={13}/> Opacity — {Math.round(fabOpacity * 100)}%
+                      </p>
+                      <input type="range" min="0.3" max="1" step="0.05"
+                        value={fabOpacity} onChange={(e) => setFabOpacity(Number(e.target.value))}
+                        className="sp-slider"/>
+                    </>
+                  )}
+                </div>
+
+                {/* Column 3 — UI Preferences */}
+                <div className="sp-settings-col">
+                  <p className="sp-col-title">UI Preferences</p>
+                  <div className="sp-prefs-list">
+                    {settingConfigToggles.bubble && <ToggleRow label="Show Bubble"           k="enabledBubble"            uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.dialer && <ToggleRow label="Show Dialer Button"    k="showDialer"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.settings && <ToggleRow label="Show Settings Button"  k="showSetting"              uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.opacity && <ToggleRow label="Show Opacity Button"   k="showOpacity"              uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.autoAnswerVideo && <ToggleRow label="Answer with Video"     k="answerwithVideoCall"       uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.answerButtonVideo && <ToggleRow label="Show Video Answer Btn" k="ShowIncomingCallVideoBtn" uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.answerButtonAudio && <ToggleRow label="Show Audio Answer Btn" k="ShowIncomingCallAudio"    uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.fullscreen && <ToggleRow label="Fullscreen Mode"       k="fullscreen"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                    {settingConfigToggles.autoRecording && <ToggleRow label="Auto Record Calls"     k="autoRecord"               uiPrefs={uiPrefs} onToggle={handleUiPref}/>}
+                  </div>
+
+                  {uiPrefs.autoRecord && (
+                    <>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>Recording Directory</p>
+                      <div className="sp-field">
+                        <Server size={14}/>
+                        <input
+                          placeholder="video/recordings/Ksip"
+                          type="text"
+                          value={form.recordingDir}
+                          onChange={(e) => setForm((f) => ({ ...f, recordingDir: e.target.value }))}
+                        />
+                      </div>
+                      <p className="sp-settings-label" style={{ marginTop: 10 }}>Upload API URL (optional)</p>
+                      <div className="sp-field">
+                        <Server size={14}/>
+                        <input
+                          placeholder="https://api.example.com/upload-recording"
+                          type="url"
+                          value={form.uploadApiUrl}
+                          onChange={(e) => setForm((f) => ({ ...f, uploadApiUrl: e.target.value }))}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <p className="sp-col-title" style={{ marginTop: 12 }}>Panel Position</p>
+                  <div className="sp-position-grid">
+                    {PANEL_POSITIONS.map((pos) => (
+                      <button
+                        key={pos}
+                        type="button"
+                        title={pos}
+                        className={`sp-pos-btn ${panelPosition === pos ? "active" : ""}`}
+                        onClick={() => setPanelPosition(pos)}
+                      />
+                    ))}
+                  </div>
+                  <p className="sp-settings-label" style={{ marginTop: 10 }}>Offset (px)</p>
+                  <div className="sp-offset-grid">
+                    {["top", "right", "bottom", "left"].map((side) => (
+                      <div key={side} className="sp-offset-field">
+                        <span>{side[0].toUpperCase()}</span>
+                        <input
+                          type="number" min="0" max="999"
+                          value={panelOffset[side]}
+                          onChange={(e) => setPanelOffset((o) => ({ ...o, [side]: Number(e.target.value) }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Settings Panel — 3-column layout */}
+      {showSettings && (
+        <>
+          <div className="sp-settings-backdrop" onClick={() => {
+            console.log('🖱️ Backdrop clicked, closing settings');
+            setShowSettings(false);
+          }}/>
+          <div className="sp-settings-panel">
+            <div className="sp-settings-header">
+              <Settings size={14}/><span>Settings</span>
+              <button className="sp-icon-btn" onClick={() => {
+                console.log('❌ Close button clicked');
+                setShowSettings(false);
+              }} style={{ marginLeft: "auto" }}>
                 <X size={13}/>
               </button>
             </div>
@@ -921,13 +1402,13 @@ export default function Softphone({
           {uiPrefs.showDialer && (
             <button className={`sp-fab-item ${showDialer ? "fab-active" : ""}`} title="Dialer"
               onClick={() => { setShowDialer((d) => !d); setShowSettings(false); }}>
-              <Grid3x3 size={16}/>
+              <Calculator size={24}/>
             </button>
           )}
           {uiPrefs.showSetting && (
             <button className={`sp-fab-item ${showSettings ? "fab-active" : ""}`} title="Settings"
               onClick={() => { setShowSettings((s) => !s); setShowDialer(false); }}>
-              <Settings size={16}/>
+              <Settings size={24}/>
             </button>
           )}
         </div>
@@ -938,10 +1419,12 @@ export default function Softphone({
           data-drag-handle
           title="SIP Softphone"
         >
-          {navOpen ? <X size={20}/> : <Phone size={20}/>}
+          {navOpen ? <X size={20}/> : <MonitorCogIcon size={26}/>}
           <span className={`sp-fab-dot ${statusColor}`}/>
         </button>
       </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 }
