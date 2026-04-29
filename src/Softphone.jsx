@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef, useCallback } from "react";
 import Draggable from "react-draggable";
 import {
   Phone,
@@ -55,6 +55,10 @@ const AUDIO_CODECS = ["PCMU", "PCMA", "G722", "G729", "opus"];
 const VIDEO_CODECS = ["VP8", "VP9", "H264", "H265", "AV1"];
 
 const STORAGE_KEY = "sip_softphone_config";
+const SIP_WS_PROTOCOL = "wss";
+const SIP_WS_PORT = "8089";
+const SIP_WS_PATH = "/ws";
+
 function loadConfig() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -65,8 +69,52 @@ function loadConfig() {
 function saveConfig(c) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(c));
 }
-function buildWs(protocol, server, port) {
-  return `${protocol}://${server}:${port}/ws`;
+function normalizeWsProtocol() {
+  return SIP_WS_PROTOCOL;
+}
+function normalizeWsPort() {
+  return SIP_WS_PORT;
+}
+function sanitizeServerHost(server) {
+  const raw = String(server || "").trim();
+  if (!raw) return "";
+
+  try {
+    const url = raw.includes("://") ? new URL(raw) : new URL(`https://${raw}`);
+    return url.hostname;
+  } catch {
+    return raw
+      .replace(/^wss?:\/\//i, "")
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/.*$/, "")
+      .replace(/:\d+$/, "");
+  }
+}
+function buildWs(_protocol, server, _port) {
+  const host = sanitizeServerHost(server);
+  return host ? `${SIP_WS_PROTOCOL}://${host}:${SIP_WS_PORT}${SIP_WS_PATH}` : "";
+}
+function withForcedWssTransport(config = {}) {
+  return {
+    ...config,
+    server: sanitizeServerHost(config.server),
+    wsProtocol: SIP_WS_PROTOCOL,
+    wsPort: SIP_WS_PORT,
+    wsServer: buildWs(SIP_WS_PROTOCOL, config.server, SIP_WS_PORT),
+  };
+}
+function getMediaSecurityError() {
+  if (typeof window === "undefined") return "";
+
+  const hasGetUserMedia = !!window.navigator?.mediaDevices?.getUserMedia;
+  if (window.isSecureContext && hasGetUserMedia) return "";
+
+  const origin = window.location?.origin || "this page";
+  if (!window.isSecureContext) {
+    return `Call failed: Media devices are not available because ${origin} is not a secure context. Open the app with HTTPS or localhost. SIP WebSocket must be wss://<pbx-host>:8089/ws.`;
+  }
+
+  return "Call failed: Media devices API is unavailable. Check browser support, microphone/camera permissions, and connected devices.";
 }
 
 const PANEL_POSITIONS = [
@@ -136,8 +184,8 @@ export default function Softphone({
   panelOffset: panelOffsetProp = {},
   // SIP config props
   server: serverProp = "",
-  wsProtocol: wsProtocolProp = "ws",
-  wsPort: wsPortProp = "8088",
+  wsProtocol: wsProtocolProp = SIP_WS_PROTOCOL,
+  wsPort: wsPortProp = SIP_WS_PORT,
   extension: extensionProp = "",
   password: passwordProp = "",
   displayName: displayNameProp = "",
@@ -183,8 +231,8 @@ export default function Softphone({
 
   const [form, setForm] = useState({
     server: saved?.server || serverProp || "",
-    wsProtocol: saved?.wsProtocol || wsProtocolProp || "ws",
-    wsPort: saved?.wsPort || wsPortProp || "8088",
+    wsProtocol: normalizeWsProtocol(saved?.wsProtocol || wsProtocolProp),
+    wsPort: normalizeWsPort(saved?.wsPort || wsPortProp),
     extension: saved?.extension || extensionProp || "",
     password: saved?.password || passwordProp || "",
     displayName: saved?.displayName || displayNameProp || "",
@@ -239,18 +287,17 @@ export default function Softphone({
     const s = saved?.server || serverProp;
     const e = saved?.extension || extensionProp;
     const p = saved?.password || passwordProp;
-    const proto = saved?.wsProtocol || wsProtocolProp || "ws";
-    const port = saved?.wsPort || wsPortProp || "8088";
+    const proto = normalizeWsProtocol(saved?.wsProtocol || wsProtocolProp);
+    const port = normalizeWsPort(saved?.wsPort || wsPortProp);
     if (s && e && p)
-      return {
+      return withForcedWssTransport({
         server: s,
         extension: e,
         password: p,
         wsProtocol: proto,
         wsPort: port,
         displayName: saved?.displayName || displayNameProp || "",
-        wsServer: buildWs(proto, s, port),
-      };
+      });
     return null;
   });
 
@@ -267,6 +314,7 @@ export default function Softphone({
   const [showDirModal, setShowDirModal] = useState(false);
   const [dirHandle, setDirHandle] = useState(null);
   const [showStatusToast, setShowStatusToast] = useState(true);
+  const [mediaError, setMediaError] = useState(() => getMediaSecurityError());
 
   // Filter codecs based on settingConfigCodecs
   const availableAudioCodecs = settingConfigCodecs.audio.visible
@@ -304,6 +352,39 @@ export default function Softphone({
   const videoSize = useResizable({ w: 360, h: 280 }, { w: 260, h: 200 });
   const videoNodeRef = useRef(null);
   const dialerNodeRef = useRef(null);
+  const wsPreview = buildWs(SIP_WS_PROTOCOL, form.server, SIP_WS_PORT) || `${SIP_WS_PROTOCOL}://...:${SIP_WS_PORT}${SIP_WS_PATH}`;
+
+  const safeCall = useCallback(
+    (target, video = true) => {
+      const message = getMediaSecurityError();
+      if (message) {
+        setMediaError(message);
+        console.error(message);
+        return false;
+      }
+      setMediaError("");
+      return call(target, video);
+    },
+    [call],
+  );
+
+  const safeAnswer = useCallback(
+    (video = false) => {
+      const message = getMediaSecurityError();
+      if (message) {
+        setMediaError(message);
+        console.error(message);
+        return false;
+      }
+      setMediaError("");
+      return answer(video);
+    },
+    [answer],
+  );
+
+  useEffect(() => {
+    setMediaError(getMediaSecurityError());
+  }, []);
 
   // Sync recording config to useSIP whenever settings change
   useEffect(() => {
@@ -412,18 +493,15 @@ export default function Softphone({
       if (!registered) return;
       setDialInput(target);
       // Don't permanently set withVideo — only use it for this specific call
-      call(target, video);
+      safeCall(target, video);
     });
     return unsub;
-  }, [registered, call]);
+  }, [registered, safeCall]);
 
   const handleConnect = (e) => {
     e.preventDefault();
-    const config = {
+    const config = withForcedWssTransport({
       server: form.server,
-      wsPort: form.wsPort,
-      wsProtocol: form.wsProtocol,
-      wsServer: buildWs(form.wsProtocol, form.server, form.wsPort),
       extension: form.extension,
       password: form.password,
       displayName: form.displayName,
@@ -437,7 +515,7 @@ export default function Softphone({
       ...Object.fromEntries(
         Object.entries(uiPrefs).filter(([k]) => k !== "showSetting"),
       ),
-    };
+    });
     saveConfig(config);
     setActiveConfig(config);
     setShowSettings(false);
@@ -538,6 +616,7 @@ export default function Softphone({
           {error && !reconnecting && (
             <span className="sp-statusbar-error">{error}</span>
           )}
+          {mediaError && <span className="sp-statusbar-error">{mediaError}</span>}
           <div
             style={{
               marginLeft: "auto",
@@ -593,7 +672,7 @@ export default function Softphone({
                   {effectiveAnswerVideo ? (
                     <button
                       className="sp-action-btn sp-action-video"
-                      onClick={() => answer(true)}
+                      onClick={() => safeAnswer(true)}
                     >
                       <Video size={18} />
                     </button>
@@ -602,7 +681,7 @@ export default function Softphone({
                       {showAudioBtn && (
                         <button
                           className="sp-action-btn sp-action-answer"
-                          onClick={() => answer(false)}
+                          onClick={() => safeAnswer(false)}
                         >
                           <Phone size={18} />
                         </button>
@@ -610,7 +689,7 @@ export default function Softphone({
                       {showVideoBtn && (
                         <button
                           className="sp-action-btn sp-action-video"
-                          onClick={() => answer(true)}
+                          onClick={() => safeAnswer(true)}
                         >
                           <Video size={18} />
                         </button>
@@ -639,7 +718,7 @@ export default function Softphone({
                     registered &&
                     callState === "idle"
                   )
-                    call(dialInput, withVideo);
+                    safeCall(dialInput, withVideo);
                 }}
                 placeholder="Enter number"
               />
@@ -677,9 +756,9 @@ export default function Softphone({
                 className="sp-call-btn"
                 onClick={() => {
                   if (dialInput && registered && callState === "idle")
-                    call(dialInput, withVideo);
+                    safeCall(dialInput, withVideo);
                 }}
-                disabled={!dialInput || !registered || callState !== "idle"}
+                disabled={!dialInput || !registered || callState !== "idle" || !!mediaError}
               >
                 <Phone size={16} />
               </button>
@@ -840,31 +919,17 @@ export default function Softphone({
                 <div className="sp-proto-row">
                   <div className="sp-field sp-proto-select">
                     <Monitor size={14} />
-                    <select
-                      value={form.wsProtocol}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, wsProtocol: e.target.value }))
-                      }
-                    >
-                      <option value="ws">ws:// (8088)</option>
+                    <select value={SIP_WS_PROTOCOL} disabled>
                       <option value="wss">wss:// (8089)</option>
                     </select>
                   </div>
                   <div className="sp-field sp-proto-port">
                     <Hash size={14} />
-                    <input
-                      placeholder="Port"
-                      value={form.wsPort}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, wsPort: e.target.value }))
-                      }
-                      required
-                    />
+                    <input placeholder="Port" value={SIP_WS_PORT} readOnly required />
                   </div>
                 </div>
                 <div className="sp-ws-preview">
-                  <Monitor size={11} /> {form.wsProtocol}://
-                  {form.server || "..."}:{form.wsPort}/ws
+                  <Monitor size={11} /> {wsPreview}
                 </div>
                 <p className="sp-settings-label" style={{ marginTop: 6 }}>
                   UI Preferences
@@ -976,7 +1041,8 @@ export default function Softphone({
   }
 
   return (
-    <div class="sp-body">
+    <div className="sp-body">
+      {mediaError && <div className="sp-media-warning">&#9888; {mediaError}</div>}
       {/* Status Toast - Always visible */}
       {showStatusToast && (
         <div className={`sp-status-toast ${statusColor}`}>
@@ -1067,6 +1133,7 @@ export default function Softphone({
               {error && !reconnecting && (
                 <p className="sp-settings-error">&#9888; {error}</p>
               )}
+              {mediaError && <p className="sp-settings-error">&#9888; {mediaError}</p>}
 
               {/* 3-column grid */}
               <div className="sp-settings-cols">
@@ -1116,34 +1183,17 @@ export default function Softphone({
                     <div className="sp-proto-row">
                       <div className="sp-field sp-proto-select">
                         <Monitor size={14} />
-                        <select
-                          value={form.wsProtocol}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              wsProtocol: e.target.value,
-                            }))
-                          }
-                        >
-                          <option value="ws">ws:// (8088)</option>
+                        <select value={SIP_WS_PROTOCOL} disabled>
                           <option value="wss">wss:// (8089)</option>
                         </select>
                       </div>
                       <div className="sp-field sp-proto-port">
                         <Hash size={14} />
-                        <input
-                          placeholder="Port"
-                          value={form.wsPort}
-                          onChange={(e) =>
-                            setForm((f) => ({ ...f, wsPort: e.target.value }))
-                          }
-                          required
-                        />
+                        <input placeholder="Port" value={SIP_WS_PORT} readOnly required />
                       </div>
                     </div>
                     <div className="sp-ws-preview">
-                      <Monitor size={11} /> {form.wsProtocol}://
-                      {form.server || "..."}:{form.wsPort}/ws
+                      <Monitor size={11} /> {wsPreview}
                     </div>
                     <button type="submit" className="sp-login-btn">
                       <Phone size={14} />{" "}
@@ -1486,7 +1536,7 @@ export default function Softphone({
                   {effectiveAnswerVideo ? (
                     <button
                       className="sp-action-btn sp-action-video"
-                      onClick={() => answer(true)}
+                      onClick={() => safeAnswer(true)}
                     >
                       <Video size={20} />
                     </button>
@@ -1495,7 +1545,7 @@ export default function Softphone({
                       {showAudioBtn && (
                         <button
                           className="sp-action-btn sp-action-answer"
-                          onClick={() => answer(false)}
+                          onClick={() => safeAnswer(false)}
                         >
                           <Phone size={20} />
                         </button>
@@ -1503,7 +1553,7 @@ export default function Softphone({
                       {showVideoBtn && (
                         <button
                           className="sp-action-btn sp-action-video"
-                          onClick={() => answer(true)}
+                          onClick={() => safeAnswer(true)}
                         >
                           <Video size={20} />
                         </button>
@@ -1665,7 +1715,7 @@ export default function Softphone({
                           registered &&
                           callState === "idle"
                         ) {
-                          call(dialInput, withVideo);
+                          safeCall(dialInput, withVideo);
                           setShowDialer(false);
                         }
                       }}
@@ -1705,12 +1755,12 @@ export default function Softphone({
                       className="sp-call-btn"
                       onClick={() => {
                         if (dialInput && registered && callState === "idle") {
-                          call(dialInput, withVideo);
+                          safeCall(dialInput, withVideo);
                           setShowDialer(false);
                         }
                       }}
                       disabled={
-                        !dialInput || !registered || callState !== "idle"
+                        !dialInput || !registered || callState !== "idle" || !!mediaError
                       }
                     >
                       <Phone size={16} />
@@ -1829,37 +1879,17 @@ export default function Softphone({
                         <div className="sp-proto-row">
                           <div className="sp-field sp-proto-select">
                             <Monitor size={14} />
-                            <select
-                              value={form.wsProtocol}
-                              onChange={(e) =>
-                                setForm((f) => ({
-                                  ...f,
-                                  wsProtocol: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="ws">ws:// (8088)</option>
+                            <select value={SIP_WS_PROTOCOL} disabled>
                               <option value="wss">wss:// (8089)</option>
                             </select>
                           </div>
                           <div className="sp-field sp-proto-port">
                             <Hash size={14} />
-                            <input
-                              placeholder="Port"
-                              value={form.wsPort}
-                              onChange={(e) =>
-                                setForm((f) => ({
-                                  ...f,
-                                  wsPort: e.target.value,
-                                }))
-                              }
-                              required
-                            />
+                            <input placeholder="Port" value={SIP_WS_PORT} readOnly required />
                           </div>
                         </div>
                         <div className="sp-ws-preview">
-                          <Monitor size={11} /> {form.wsProtocol}://
-                          {form.server || "..."}:{form.wsPort}/ws
+                          <Monitor size={11} /> {wsPreview}
                         </div>
                         <button type="submit" className="sp-login-btn">
                           <Phone size={14} />{" "}
@@ -2207,37 +2237,17 @@ export default function Softphone({
                         <div className="sp-proto-row">
                           <div className="sp-field sp-proto-select">
                             <Monitor size={14} />
-                            <select
-                              value={form.wsProtocol}
-                              onChange={(e) =>
-                                setForm((f) => ({
-                                  ...f,
-                                  wsProtocol: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="ws">ws:// (8088)</option>
+                            <select value={SIP_WS_PROTOCOL} disabled>
                               <option value="wss">wss:// (8089)</option>
                             </select>
                           </div>
                           <div className="sp-field sp-proto-port">
                             <Hash size={14} />
-                            <input
-                              placeholder="Port"
-                              value={form.wsPort}
-                              onChange={(e) =>
-                                setForm((f) => ({
-                                  ...f,
-                                  wsPort: e.target.value,
-                                }))
-                              }
-                              required
-                            />
+                            <input placeholder="Port" value={SIP_WS_PORT} readOnly required />
                           </div>
                         </div>
                         <div className="sp-ws-preview">
-                          <Monitor size={11} /> {form.wsProtocol}://
-                          {form.server || "..."}:{form.wsPort}/ws
+                          <Monitor size={11} /> {wsPreview}
                         </div>
                         <button type="submit" className="sp-login-btn">
                           <Phone size={14} />{" "}
