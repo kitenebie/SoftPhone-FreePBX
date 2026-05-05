@@ -189,6 +189,9 @@ export default function Softphone({
   extension: extensionProp = "",
   password: passwordProp = "",
   displayName: displayNameProp = "",
+  // API config props
+  configApiUrl = "/api/softphone-config",
+  configApiToken = "",
   // Settings configuration props
   settingConfigToggles = {
     bubble: true,
@@ -318,6 +321,69 @@ export default function Softphone({
   const [remoteVideoLoaded, setRemoteVideoLoaded] = useState(false);
   const [callerData, setCallerData] = useState(null);
   const [fetchingCaller, setFetchingCaller] = useState(false);
+
+  // Fetch config from API on mount and apply over localStorage/props
+  useEffect(() => {
+    if (!configApiUrl) return;
+
+    const headers = { "Content-Type": "application/json" };
+    if (configApiToken) headers["Authorization"] = `Bearer ${configApiToken}`;
+
+    fetch(configApiUrl, { headers, credentials: "include" })
+      .then((r) => r.json())
+      .then(({ data }) => {
+        if (!data) return; // null = no saved config, keep defaults
+
+        // Apply SIP form fields
+        setForm((f) => ({
+          ...f,
+          server:       data.server        ?? f.server,
+          extension:    data.extension     ?? f.extension,
+          password:     data.password      ?? f.password,
+          displayName:  data.display_name  ?? f.displayName,
+          audioCodecs:  data.audio_codecs  ?? f.audioCodecs,
+          videoCodecs:  data.video_codecs  ?? f.videoCodecs,
+          autoRecord:   data.auto_record   ?? f.autoRecord,
+          recordingDir: data.recording_dir ?? f.recordingDir,
+          uploadApiUrl: data.upload_api_url ?? f.uploadApiUrl,
+        }));
+
+        // Apply UI prefs
+        setUiPrefs((p) => ({
+          ...p,
+          enabledBubble:            data.enabled_bubble               ?? p.enabledBubble,
+          showDialer:               data.show_dialer                  ?? p.showDialer,
+          showOpacity:              data.show_opacity                 ?? p.showOpacity,
+          answerwithVideoCall:      data.answer_with_video_call       ?? p.answerwithVideoCall,
+          ShowIncomingCallVideoBtn: data.show_incoming_call_video_btn ?? p.ShowIncomingCallVideoBtn,
+          ShowIncomingCallAudio:    data.show_incoming_call_audio     ?? p.ShowIncomingCallAudio,
+          fullscreen:               data.fullscreen                   ?? p.fullscreen,
+          autoRecord:               data.auto_record                  ?? p.autoRecord,
+        }));
+
+        // Apply panel position offset (position_top/bottom/left/right)
+        setPanelOffset((o) => ({
+          top:    data.position_top    ?? o.top,
+          right:  data.position_right  ?? o.right,
+          bottom: data.position_bottom ?? o.bottom,
+          left:   data.position_left   ?? o.left,
+        }));
+
+        // Auto-connect if SIP credentials are present in the API response
+        if (data.server && data.extension && data.password) {
+          setActiveConfig(
+            withForcedWssTransport({
+              server:      data.server,
+              extension:   data.extension,
+              password:    data.password,
+              displayName: data.display_name ?? "",
+            })
+          );
+        }
+      })
+      .catch((err) => console.error("[Softphone] Failed to fetch config:", err));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configApiUrl, configApiToken]);
 
   // Filter codecs based on settingConfigCodecs
   const availableAudioCodecs = settingConfigCodecs.audio.visible
@@ -690,7 +756,11 @@ export default function Softphone({
                   className="sp-incoming-avatar"
                   style={{ margin: "0 auto 12px" }}
                 >
-                  <PhoneIncoming size={22} />
+                  {callerData?.avatar ? (
+                    <img src={callerData.avatar} alt="Caller" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                  ) : (
+                    <PhoneIncoming size={22} />
+                  )}
                 </div>
                 <p className="sp-incoming-label">Incoming Call</p>
                 <p className="sp-incoming-caller">
@@ -1573,7 +1643,11 @@ export default function Softphone({
             <div className="sp-incoming-overlay">
               <div className="sp-incoming-card">
                 <div className="sp-incoming-avatar">
-                  <PhoneIncoming size={26} />
+                  {callerData?.avatar ? (
+                    <img src={callerData.avatar} alt="Caller" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                  ) : (
+                    <PhoneIncoming size={26} />
+                  )}
                 </div>
                 <p className="sp-incoming-label">Incoming Call</p>
                 <p className="sp-incoming-caller">

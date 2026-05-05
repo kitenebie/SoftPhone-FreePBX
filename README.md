@@ -769,7 +769,8 @@ The API should return a JSON object with the following structure:
   "name": "John Doe",
   "age": 35,
   "address": "123 Main St, City, State",
-  "mobile_number": "09171234567"
+  "mobile_number": "09171234567",
+  "avatar": "https://example.com/avatars/johndoe.jpg"
 }
 ```
 
@@ -806,7 +807,8 @@ class UserController extends Controller
             'name' => $user->name,
             'age' => $user->age,
             'address' => $user->address,
-            'mobile_number' => $user->mobile_number
+            'mobile_number' => $user->mobile_number,
+            'avatar' => $user->avatar
         ]);
     }
 }
@@ -831,6 +833,7 @@ Schema::create('users', function (Blueprint $table) {
     $table->integer('age')->nullable();
     $table->text('address')->nullable();
     $table->string('mobile_number')->unique();
+    $table->string('avatar')->nullable();
     $table->timestamps();
 });
 ```
@@ -841,7 +844,8 @@ Schema::create('users', function (Blueprint $table) {
 2. A GET request is made to `/user/extension/{extension}`
 3. Your Laravel controller queries the database using `User::where('mobile_number', $ext)`
 4. The user data is returned as JSON
-5. The softphone displays the caller's name, age, address, and mobile number in the incoming call UI
+5. The softphone displays the caller's avatar (if provided), name, age, address, and mobile number in the incoming call UI
+6. If no avatar is provided, a default phone icon is shown
 
 ### Error Handling
 
