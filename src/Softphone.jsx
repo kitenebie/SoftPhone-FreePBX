@@ -611,6 +611,40 @@ export default function Softphone({
     saveConfig(config);
     setActiveConfig(config);
     setShowSettings(false);
+
+    // Save to database if configApiUrl is provided
+    if (configApiUrl) {
+      const headers = { "Content-Type": "application/json" };
+      if (configApiToken) headers["Authorization"] = `Bearer ${configApiToken}`;
+
+      fetch(configApiUrl, {
+        method:      "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({
+          server:                         form.server,
+          extension:                      form.extension,
+          password:                       form.password,
+          display_name:                   form.displayName,
+          audio_codecs:                   form.audioCodecs,
+          video_codecs:                   form.videoCodecs,
+          auto_record:                    uiPrefs.autoRecord,
+          recording_dir:                  form.recordingDir,
+          upload_api_url:                 form.uploadApiUrl,
+          enabled_bubble:                 uiPrefs.enabledBubble,
+          show_dialer:                    uiPrefs.showDialer,
+          show_opacity:                   uiPrefs.showOpacity,
+          answer_with_video_call:         uiPrefs.answerwithVideoCall,
+          show_incoming_call_video_btn:   uiPrefs.ShowIncomingCallVideoBtn,
+          show_incoming_call_audio:       uiPrefs.ShowIncomingCallAudio,
+          fullscreen:                     uiPrefs.fullscreen,
+          position_top:                   panelOffset.top,
+          position_right:                 panelOffset.right,
+          position_bottom:                panelOffset.bottom,
+          position_left:                  panelOffset.left,
+        }),
+      }).catch((err) => console.error("[Softphone] Failed to save config:", err));
+    }
   };
 
   const handleMute = () => {
