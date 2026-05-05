@@ -746,6 +746,112 @@ Settings are saved to `localStorage` under key `sip_softphone_config`:
   ```
 
 ---
+
+## Incoming Call User Lookup
+
+The softphone automatically fetches user information when an incoming call is received. This allows you to display caller details like name, age, address, and mobile number.
+
+### API Endpoint
+
+The softphone makes a GET request to:
+```
+/user/extension/{extension}
+```
+
+Where `{extension}` is the caller's extension number extracted from the incoming SIP session.
+
+### Expected Response Format
+
+The API should return a JSON object with the following structure:
+
+```json
+{
+  "name": "John Doe",
+  "age": 35,
+  "address": "123 Main St, City, State",
+  "mobile_number": "09171234567"
+}
+```
+
+All fields are optional. If a field is not provided, it won't be displayed.
+
+### Laravel Controller Example
+
+```php
+use Illuminate\Http\Request;
+use App\Models\User;
+
+class UserController extends Controller
+{
+    /**
+     * Get user by extension number
+     * 
+     * @param string $ext Extension number (matches user's mobile_number)
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUserByExtension($ext)
+    {
+        // Find user where mobile_number matches the extension
+        $user = User::where('mobile_number', $ext)->first();
+        
+        // Return 404 if user not found
+        if (!$user) {
+            return response()->json([
+                'error' => 'User not found'
+            ], 404);
+        }
+        
+        // Return user data
+        return response()->json([
+            'name' => $user->name,
+            'age' => $user->age,
+            'address' => $user->address,
+            'mobile_number' => $user->mobile_number
+        ]);
+    }
+}
+```
+
+### Route Definition
+
+Add this route to your `routes/web.php` or `routes/api.php`:
+
+```php
+Route::get('/user/extension/{ext}', [UserController::class, 'getUserByExtension']);
+```
+
+### Database Schema Example
+
+Your `users` table should have these columns:
+
+```php
+Schema::create('users', function (Blueprint $table) {
+    $table->id();
+    $table->string('name');
+    $table->integer('age')->nullable();
+    $table->text('address')->nullable();
+    $table->string('mobile_number')->unique();
+    $table->timestamps();
+});
+```
+
+### How It Works
+
+1. When an incoming call is received, the softphone extracts the caller's extension number from the SIP session
+2. A GET request is made to `/user/extension/{extension}`
+3. Your Laravel controller queries the database using `User::where('mobile_number', $ext)`
+4. The user data is returned as JSON
+5. The softphone displays the caller's name, age, address, and mobile number in the incoming call UI
+
+### Error Handling
+
+If the API request fails or returns an error, the softphone will:
+- Log the error to the browser console
+- Display the default caller information (extension number or display name from SIP)
+- Continue to function normally
+
+---
+
 ## Author
 
 **Kenneth H. Gimpao**

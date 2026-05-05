@@ -315,6 +315,9 @@ export default function Softphone({
   const [dirHandle, setDirHandle] = useState(null);
   const [showStatusToast, setShowStatusToast] = useState(true);
   const [mediaError, setMediaError] = useState(() => getMediaSecurityError());
+  const [remoteVideoLoaded, setRemoteVideoLoaded] = useState(false);
+  const [callerData, setCallerData] = useState(null);
+  const [fetchingCaller, setFetchingCaller] = useState(false);
 
   // Filter codecs based on settingConfigCodecs
   const availableAudioCodecs = settingConfigCodecs.audio.visible
@@ -349,7 +352,7 @@ export default function Softphone({
   } = useSIP(sipConfig);
 
   const fabPanel = useDraggable({ x: window.innerWidth - 90, y: 24 });
-  const videoSize = useResizable({ w: 360, h: 280 }, { w: 260, h: 200 });
+  const videoSize = useResizable({ w: 360, h: 500 }, { w: 260, h: 500 });
   const videoNodeRef = useRef(null);
   const dialerNodeRef = useRef(null);
   const wsPreview = buildWs(SIP_WS_PROTOCOL, form.server, SIP_WS_PORT) || `${SIP_WS_PROTOCOL}://...:${SIP_WS_PORT}${SIP_WS_PATH}`;
@@ -436,6 +439,29 @@ export default function Softphone({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Fetch caller data when incoming call
+  useEffect(() => {
+    if (callState === "incoming" && incomingSession) {
+      const ext = incomingSession?.remoteIdentity?.uri?.user;
+      if (ext && !fetchingCaller) {
+        setFetchingCaller(true);
+        fetch(`/user/extension/${ext}`)
+          .then(res => res.json())
+          .then(data => {
+            setCallerData(data);
+            setFetchingCaller(false);
+          })
+          .catch(err => {
+            console.error("Failed to fetch caller data:", err);
+            setFetchingCaller(false);
+          });
+      }
+    } else {
+      setCallerData(null);
+      setFetchingCaller(false);
+    }
+  }, [callState, incomingSession]);
 
   // Auto-hide status toast when connected
   useEffect(() => {
@@ -525,6 +551,13 @@ export default function Softphone({
     mute(!muted);
     setMuted((m) => !m);
   };
+
+  // Reset remote video loaded state when call state changes
+  useEffect(() => {
+    if (callState === "idle" || callState === "ringing") {
+      setRemoteVideoLoaded(false);
+    }
+  }, [callState]);
   const handleVideoMute = () => {
     const next = !videoMuted;
     setVideoMuted(next);
@@ -661,10 +694,17 @@ export default function Softphone({
                 </div>
                 <p className="sp-incoming-label">Incoming Call</p>
                 <p className="sp-incoming-caller">
-                  {incomingSession?.remoteIdentity?.displayName ||
+                  {callerData?.name || incomingSession?.remoteIdentity?.displayName ||
                     incomingSession?.remoteIdentity?.uri?.user ||
                     "Unknown"}
                 </p>
+                {callerData && (
+                  <div style={{ fontSize: "0.85rem", opacity: 0.8, marginTop: 4 }}>
+                    {callerData.age && <div>Age: {callerData.age}</div>}
+                    {callerData.address && <div>Address: {callerData.address}</div>}
+                    {callerData.mobile_number && <div>Mobile: {callerData.mobile_number}</div>}
+                  </div>
+                )}
                 <div
                   className="sp-incoming-actions"
                   style={{ justifyContent: "center", marginTop: 12 }}
@@ -786,6 +826,7 @@ export default function Softphone({
                 autoPlay
                 playsInline
                 className="sp-video-remote"
+                onLoadedData={() => setRemoteVideoLoaded(true)}
               />
               {!videoMuted && (
                 <video
@@ -800,6 +841,14 @@ export default function Softphone({
                 <div className="sp-video-placeholder">
                   <Loader size={32} className="spin" />
                   <span>Waiting for answer...</span>
+                </div>
+              )}
+              {callState === "active" && !remoteVideoLoaded && (
+                <div className="sp-video-placeholder">
+                  <div className="sp-loading-bar">
+                    <div className="sp-loading-bar-fill" />
+                  </div>
+                  <span>Connecting to citizen...</span>
                 </div>
               )}
               {callState === "idle" && (
@@ -1528,10 +1577,17 @@ export default function Softphone({
                 </div>
                 <p className="sp-incoming-label">Incoming Call</p>
                 <p className="sp-incoming-caller">
-                  {incomingSession?.remoteIdentity?.displayName ||
+                  {callerData?.name || incomingSession?.remoteIdentity?.displayName ||
                     incomingSession?.remoteIdentity?.uri?.user ||
                     "Unknown"}
                 </p>
+                {callerData && (
+                  <div style={{ fontSize: "0.9rem", opacity: 0.85, marginTop: 8 }}>
+                    {callerData.age && <div>Age: {callerData.age}</div>}
+                    {callerData.address && <div>Address: {callerData.address}</div>}
+                    {callerData.mobile_number && <div>Mobile: {callerData.mobile_number}</div>}
+                  </div>
+                )}
                 <div className="sp-incoming-actions">
                   {effectiveAnswerVideo ? (
                     <button
@@ -1625,6 +1681,7 @@ export default function Softphone({
                       autoPlay
                       playsInline
                       className="sp-video-remote"
+                      onLoadedData={() => setRemoteVideoLoaded(true)}
                     />
                     {!videoMuted && (
                       <video
@@ -1639,6 +1696,14 @@ export default function Softphone({
                       <div className="sp-video-placeholder">
                         <Loader size={28} className="spin" />
                         <span>Waiting for answer...</span>
+                      </div>
+                    )}
+                    {callState === "active" && !remoteVideoLoaded && (
+                      <div className="sp-video-placeholder">
+                        <div className="sp-loading-bar">
+                          <div className="sp-loading-bar-fill" />
+                        </div>
+                        <span>Connecting to citizen...</span>
                       </div>
                     )}
                   </div>
