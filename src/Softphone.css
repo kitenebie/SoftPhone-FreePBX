@@ -115,6 +115,8 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; color: #e2e8f0; 
   flex: 1;              /* fill remaining height when panel is resized */
   min-height: 500px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .sp-video-placeholder {
   position: absolute; inset: 0;
@@ -122,6 +124,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; color: #e2e8f0; 
   align-items: center; justify-content: center;
   gap: 12px; color: #475569; font-size: 0.85rem;
   background: rgba(0,0,0,0.85);
+  z-index: 1;
 }
 
 /* Loading bar for connecting state */
@@ -147,18 +150,25 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; color: #e2e8f0; 
   50% { width: 100%; background-position: 100% 50%; }
   100% { width: 100%; background-position: 200% 50%; }
 }
-.sp-video-remote { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sp-video-remote { width: 100%; height: 100%; object-fit: cover; display: block; position: absolute; inset: 0; }
 .sp-video-local {
-  position: absolute; bottom: 10px; right: 10px;
+  position: absolute; bottom: 70px; right: 10px;
   width: 90px; height: 68px;
   border-radius: 8px; object-fit: cover;
   border: 2px solid rgba(79,70,229,0.6);
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  z-index: 2;
 }
 
 .sp-call-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex; align-items: center;
   justify-content: center; gap: 12px; padding: 14px;
+  background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+  z-index: 3;
 }
 .sp-ctrl-btn {
   width: 44px; height: 44px; border-radius: 50%;

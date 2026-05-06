@@ -1814,30 +1814,30 @@ export default function Softphone({
                         <span>Connecting to citizen...</span>
                       </div>
                     )}
-                  </div>
-                  <div className="sp-call-controls">
-                    <button
-                      className={`sp-ctrl-btn ${muted ? "active" : ""}`}
-                      onClick={handleMute}
-                    >
-                      {muted ? <MicOff size={16} /> : <Mic size={16} />}
-                    </button>
-                    <button
-                      className="sp-ctrl-btn sp-ctrl-hangup"
-                      onClick={hangup}
-                    >
-                      <PhoneOff size={18} />
-                    </button>
-                    <button
-                      className={`sp-ctrl-btn ${videoMuted ? "active" : ""}`}
-                      onClick={handleVideoMute}
-                    >
-                      {videoMuted ? (
-                        <VideoOff size={16} />
-                      ) : (
-                        <Video size={16} />
-                      )}
-                    </button>
+                    <div className="sp-call-controls">
+                      <button
+                        className={`sp-ctrl-btn ${muted ? "active" : ""}`}
+                        onClick={handleMute}
+                      >
+                        {muted ? <MicOff size={16} /> : <Mic size={16} />}
+                      </button>
+                      <button
+                        className="sp-ctrl-btn sp-ctrl-hangup"
+                        onClick={hangup}
+                      >
+                        <PhoneOff size={18} />
+                      </button>
+                      <button
+                        className={`sp-ctrl-btn ${videoMuted ? "active" : ""}`}
+                        onClick={handleVideoMute}
+                      >
+                        {videoMuted ? (
+                          <VideoOff size={16} />
+                        ) : (
+                          <Video size={16} />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 {!expanded && (
