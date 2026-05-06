@@ -418,7 +418,7 @@ export default function Softphone({
   } = useSIP(sipConfig);
 
   const fabPanel = useDraggable({ x: window.innerWidth - 90, y: 24 });
-  const videoSize = useResizable({ w: 360, h: 500 }, { w: 260, h: 500 });
+  const videoSize = useResizable({ w: 360, h: 700 }, { w: 260, h: 700 });
   const videoNodeRef = useRef(null);
   const dialerNodeRef = useRef(null);
   const wsPreview = buildWs(SIP_WS_PROTOCOL, form.server, SIP_WS_PORT) || `${SIP_WS_PROTOCOL}://...:${SIP_WS_PORT}${SIP_WS_PATH}`;
