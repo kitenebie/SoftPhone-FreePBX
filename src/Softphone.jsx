@@ -993,20 +993,23 @@ export default function Softphone({
                       <User size={36} />
                     )}
                   </div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: 12, color: '#e2e8f0' }}>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: 4, color: '#e2e8f0' }}>
                     {callerData?.name || dialInput || "Citizen"}
                   </div>
+                  {callerData?.address && (
+                    <div style={{ fontSize: "0.85rem", opacity: 0.8, marginBottom: 16 }}>
+                      Address: {callerData.address}
+                    </div>
+                  )}
                   {callState === "ringing" ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
                       <Loader size={18} className="spin" />
                       <span>Calling...</span>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
-                      <div className="sp-loading-bar" style={{ width: 100 }}>
-                        <div className="sp-loading-bar-fill" />
-                      </div>
-                      <span>Connecting media...</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
+                      <Phone size={18} />
+                      <span>In Call</span>
                     </div>
                   )}
                 </div>
@@ -1862,20 +1865,23 @@ export default function Softphone({
                             <User size={36} />
                           )}
                         </div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: 12, color: '#e2e8f0' }}>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: 4, color: '#e2e8f0' }}>
                           {callerData?.name || dialInput || "Citizen"}
                         </div>
+                        {callerData?.address && (
+                          <div style={{ fontSize: "0.85rem", opacity: 0.8, marginBottom: 16 }}>
+                            Address: {callerData.address}
+                          </div>
+                        )}
                         {callState === "ringing" ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
                             <Loader size={18} className="spin" />
                             <span>Calling...</span>
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
-                            <div className="sp-loading-bar" style={{ width: 100 }}>
-                              <div className="sp-loading-bar-fill" />
-                            </div>
-                            <span>Connecting media...</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
+                            <Phone size={18} />
+                            <span>In Call</span>
                           </div>
                         )}
                       </div>
