@@ -1646,7 +1646,7 @@ export default function Softphone({
           <audio ref={remoteAudioRef} autoPlay />
 
           {/* Status Toast */}
-          {showStatusToast && (
+          {enableFloatingStatus && showStatusToast && (
             <div className={`sp-status-toast ${statusColor}`}>
               <div className="sp-status-toast-content">
                 {registered ? (
