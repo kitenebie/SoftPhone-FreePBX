@@ -321,15 +321,31 @@ export default function Softphone({
   const [remoteVideoLoaded, setRemoteVideoLoaded] = useState(false);
   const [callerData, setCallerData] = useState(null);
   const [fetchingCaller, setFetchingCaller] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Fetch current user ID from /me API
+  useEffect(() => {
+    const headers = { "Content-Type": "application/json" };
+    if (configApiToken) headers["Authorization"] = `Bearer ${configApiToken}`;
+
+    fetch("/me", { headers, credentials: "include" })
+      .then((r) => r.json())
+      .then((user) => {
+        if (user?.id) {
+          setCurrentUserId(user.id);
+        }
+      })
+      .catch((err) => console.error("[Softphone] Failed to fetch user:", err));
+  }, [configApiToken]);
 
   // Fetch config from API on mount and apply over localStorage/props
   useEffect(() => {
-    if (!configApiUrl) return;
+    if (!configApiUrl || !currentUserId) return;
 
     const headers = { "Content-Type": "application/json" };
     if (configApiToken) headers["Authorization"] = `Bearer ${configApiToken}`;
 
-    fetch(configApiUrl, { headers, credentials: "include" })
+    fetch(`${configApiUrl}?user_id=${currentUserId}`, { headers, credentials: "include" })
       .then((r) => r.json())
       .then(({ data }) => {
         if (!data) return; // null = no saved config, keep defaults
@@ -383,7 +399,7 @@ export default function Softphone({
       })
       .catch((err) => console.error("[Softphone] Failed to fetch config:", err));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configApiUrl, configApiToken]);
+  }, [configApiUrl, configApiToken, currentUserId]);
 
   // Filter codecs based on settingConfigCodecs
   const availableAudioCodecs = settingConfigCodecs.audio.visible
@@ -592,6 +608,9 @@ export default function Softphone({
 
   const handleConnect = (e) => {
     e.preventDefault();
+    
+    console.log("[Softphone] handleConnect - currentUserId:", currentUserId);
+    
     const config = withForcedWssTransport({
       server: form.server,
       extension: form.extension,
@@ -613,7 +632,8 @@ export default function Softphone({
     setShowSettings(false);
 
     // Save to database if configApiUrl is provided
-    if (configApiUrl) {
+    if (configApiUrl && currentUserId) {
+      console.log("[Softphone] Saving config with user_id:", currentUserId);
       const headers = { "Content-Type": "application/json" };
       if (configApiToken) headers["Authorization"] = `Bearer ${configApiToken}`;
 
@@ -622,6 +642,7 @@ export default function Softphone({
         headers,
         credentials: "include",
         body: JSON.stringify({
+          user_id:                        currentUserId,
           server:                         form.server,
           extension:                      form.extension,
           password:                       form.password,
@@ -643,7 +664,12 @@ export default function Softphone({
           position_bottom:                panelOffset.bottom,
           position_left:                  panelOffset.left,
         }),
-      }).catch((err) => console.error("[Softphone] Failed to save config:", err));
+      })
+        .then(res => res.json())
+        .then(data => console.log("[Softphone] Config saved:", data))
+        .catch((err) => console.error("[Softphone] Failed to save config:", err));
+    } else {
+      console.warn("[Softphone] Cannot save config - configApiUrl:", configApiUrl, "currentUserId:", currentUserId);
     }
   };
 
