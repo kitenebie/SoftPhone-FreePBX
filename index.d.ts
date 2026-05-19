@@ -22,6 +22,7 @@ declare module 'juv-ksip-softphone' {
     settingConfigToggles?: any;
     settingConfigTogglesActiveState?: any;
     settingConfigCodecs?: any;
+    enableFloatingStatus?: boolean;
   }
 
   export const Softphone: React.FC<SoftphoneProps>;
