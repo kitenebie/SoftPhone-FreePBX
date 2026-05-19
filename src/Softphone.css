@@ -941,3 +941,25 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; color: #e2e8f0; 
   color: #e2e8f0;
   transform: scale(1.05);
 }
+
+.sp-status-inline {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  display: inline-flex !important;
+  margin: 0 !important;
+  animation: none !important;
+}
+
+.sp-status-banner {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  display: flex !important;
+  width: 100% !important;
+  justify-content: center !important;
+  border-radius: 0 !important;
+  animation: none !important;
+}

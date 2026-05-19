@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Draggable from "react-draggable";
 import {
   Phone,
@@ -170,6 +170,7 @@ function ToggleRow({ label, k, uiPrefs, onToggle }) {
 }
 
 export default function Softphone({
+  enableFloatingStatus = true,
   enabledBubble = true,
   showDialer: showDialerProp = true,
   showSetting: showSettingProp = true,
@@ -525,7 +526,10 @@ export default function Softphone({
   // Fetch caller data when incoming call
   useEffect(() => {
     if (callState === "incoming" && incomingSession) {
-      const ext = incomingSession?.remoteIdentity?.uri?.user;
+      let ext = incomingSession?.remoteIdentity?.uri?.user;
+      if (ext && String(ext).length > 10) {
+        ext = String(ext).slice(-10);
+      }
       if (ext && !fetchingCaller) {
         setFetchingCaller(true);
         fetch(`/user/extension/${ext}`)
@@ -547,6 +551,14 @@ export default function Softphone({
 
   // Auto-hide status toast when connected
   useEffect(() => {
+    // Broadcast status to ksipcall for external components
+    ksipcall.updateStatus({
+      registered,
+      reconnecting,
+      extension: activeConfig?.extension,
+      error
+    });
+
     if (registered) {
       setShowStatusToast(true);
       const timer = setTimeout(() => setShowStatusToast(false), 5000);
@@ -554,7 +566,7 @@ export default function Softphone({
     } else {
       setShowStatusToast(true);
     }
-  }, [registered, reconnecting]);
+  }, [registered, reconnecting, activeConfig?.extension, error]);
 
   const handleCreateDirectory = async () => {
     try {
@@ -1223,7 +1235,7 @@ export default function Softphone({
     <div className="sp-body">
       {mediaError && <div className="sp-media-warning">&#9888; {mediaError}</div>}
       {/* Status Toast - Always visible */}
-      {showStatusToast && (
+      {enableFloatingStatus && showStatusToast && (
         <div className={`sp-status-toast ${statusColor}`}>
           <div className="sp-status-toast-content">
             {registered ? (
