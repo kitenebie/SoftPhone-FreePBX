@@ -4,6 +4,8 @@
 const listeners = new Set();
 const statusListeners = new Set();
 
+let lastStatus = null;
+
 export const ksipcall = {
   audio(target) {
     listeners.forEach((fn) => fn({ target, video: false }));
@@ -16,10 +18,14 @@ export const ksipcall = {
     return () => listeners.delete(fn);
   },
   updateStatus(statusData) {
+    lastStatus = statusData;
     statusListeners.forEach((fn) => fn(statusData));
   },
   _subscribeStatus(fn) {
     statusListeners.add(fn);
+    if (lastStatus !== null) {
+      fn(lastStatus);
+    }
     return () => statusListeners.delete(fn);
   }
 };
