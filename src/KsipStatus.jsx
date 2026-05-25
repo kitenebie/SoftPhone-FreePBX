@@ -81,9 +81,7 @@ export function KsipStatus({ variant = "inline" }) {
       }`}
     >
       <div className="sp-status-toast-content">
-        {status.registered ? (
-          <></>
-        ) : status.reconnecting ? (
+        {status.reconnecting ? (
           <>
             <Loader size={16} className="spin" />
             <span>Reconnecting...</span>
@@ -92,7 +90,6 @@ export function KsipStatus({ variant = "inline" }) {
           <>
             <WifiOff size={16} />
             <span>Not connected</span>
-            <InfoTooltip size={16} />
           </>
         )}
       </div>
