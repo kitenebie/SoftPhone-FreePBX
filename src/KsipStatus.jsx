@@ -11,13 +11,11 @@ function InfoTooltip() {
         <p className="sp-tooltip-title">Connection troubleshooting</p>
         <ol>
           <li>
-            No connection to PBX server — press{" "}
-            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>K</kbd>{" "}
-            to open settings, check your credentials, and reconnect.
+            No connection to PBX server — press <kbd>Ctrl</kbd> +{" "}
+            <kbd>Shift</kbd> + <kbd>K</kbd> to open settings, check your
+            credentials, and reconnect.
           </li>
-          <li>
-            If step 1 doesn't work, contact IT Support for assistance.
-          </li>
+          <li>If step 1 doesn't work, contact IT Support for assistance.</li>
         </ol>
       </div>
     </div>
@@ -69,8 +67,8 @@ export function KsipStatus({ variant = "inline" }) {
   const statusColor = status.registered
     ? "status-green"
     : status.reconnecting
-    ? "status-yellow"
-    : "status-red";
+      ? "status-yellow"
+      : "status-red";
 
   const isBanner = variant === "banner";
 
@@ -80,20 +78,22 @@ export function KsipStatus({ variant = "inline" }) {
         isBanner ? "sp-status-banner" : "sp-status-inline"
       }`}
     >
-      <div className="sp-status-toast-content">
-       {status.reconnecting ? (
+      {status.reconnecting ? (
+        <div className="sp-status-toast-content">
           <>
             <Loader size={16} className="spin" />
             <span>Reconnecting...</span>
           </>
-        ) : !status.registered ? (
+        </div>
+      ) : !status.registered ? (
+        <div className="sp-status-toast-content">
           <>
             <WifiOff size={16} />
             <span>Not connected</span>
             <InfoTooltip />
           </>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
