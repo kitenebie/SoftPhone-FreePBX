@@ -73,27 +73,34 @@ export function KsipStatus({ variant = "inline" }) {
   const isBanner = variant === "banner";
 
   return (
-    <div
-      className={`sp-status-toast ${statusColor} ${
-        isBanner ? "sp-status-banner" : "sp-status-inline"
-      }`}
-    >
+    <>
       {status.reconnecting ? (
-        <div className="sp-status-toast-content">
-          <>
-            <Loader size={16} className="spin" />
-            <span>Reconnecting...</span>
-          </>
+        <div
+          className={`sp-status-toast ${statusColor} ${
+            isBanner ? "sp-status-banner" : "sp-status-inline"
+          }`}
+        >
+          <div className="sp-status-toast-content">
+            <>
+              <Loader size={16} className="spin" />
+              <span>Reconnecting...</span>
+            </>
+          </div>
         </div>
       ) : !status.registered ? (
+        <div
+          className={`sp-status-toast ${statusColor} ${
+            isBanner ? "sp-status-banner" : "sp-status-inline"
+          }`}
+        >
         <div className="sp-status-toast-content">
           <>
             <WifiOff size={16} />
             <span>Not connected</span>
             <InfoTooltip />
           </>
-        </div>
+        </div></div>
       ) : null}
-    </div>
+    </>
   );
 }
