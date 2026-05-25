@@ -92,7 +92,7 @@ export function KsipStatus({ variant = "inline" }) {
           <>
             <WifiOff size={16} />
             <span>Not connected</span>
-            <InfoTooltip />
+            <InfoTooltip size={16} />
           </>
         )}
       </div>
