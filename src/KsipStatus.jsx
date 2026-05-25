@@ -8,7 +8,8 @@ export function KsipStatus({ variant = "inline" }) {
     registered: false,
     reconnecting: false,
     extension: "",
-    error: ""
+    error: "",
+    ariConnected: true
   });
   const [visible, setVisible] = useState(true);
 
@@ -21,13 +22,17 @@ export function KsipStatus({ variant = "inline" }) {
 
   useEffect(() => {
     if (status.registered) {
+      if (status.ariConnected === false) {
+        setVisible(true);
+        return;
+      }
       setVisible(true);
       const timer = setTimeout(() => setVisible(false), 5000);
       return () => clearTimeout(timer);
     } else {
       setVisible(true);
     }
-  }, [status.registered, status.reconnecting]);
+  }, [status.registered, status.reconnecting, status.ariConnected]);
 
   if (!visible) return null;
 
@@ -44,8 +49,15 @@ export function KsipStatus({ variant = "inline" }) {
       <div className="sp-status-toast-content">
         {status.registered ? (
           <>
-            <Wifi size={16} />
-            <span>Connected - Ext. {status.extension}</span>
+            {/* <Wifi size={16} />
+            <span>
+              Connected - Ext. {status.extension}
+              {status.ariConnected === false && (
+                <span style={{ marginLeft: '8px', padding: '2px 6px', fontSize: '0.75rem', backgroundColor: '#ef4444', borderRadius: '4px', color: '#fff', fontWeight: 'bold', display: 'inline-block', lineHeight: 1 }}>
+                  ARI Offline
+                </span>
+              )}
+            </span> */}
           </>
         ) : status.reconnecting ? (
           <>

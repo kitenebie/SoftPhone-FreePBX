@@ -1529,3 +1529,18 @@ body {
   border-radius: 0 !important;
   animation: none !important;
 }
+
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(0.98);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.95;
+  }
+}
+
+@keyframes spSpin {
+  to { transform: rotate(360deg); }
+}

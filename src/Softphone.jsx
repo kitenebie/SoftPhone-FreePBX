@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Draggable from "react-draggable";
 import {
   Phone,
@@ -323,6 +323,11 @@ export default function Softphone({
   const [callerData, setCallerData] = useState(null);
   const [fetchingCaller, setFetchingCaller] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [callHasVideo, setCallHasVideo] = useState(true);
+  const [ariGoIpDetected, setAriGoIpDetected] = useState(false);
+  const [checkingAri, setCheckingAri] = useState(false);
+  const [ariChannelActive, setAriChannelActive] = useState(false);
+  const [ariConnected, setAriConnected] = useState(true);
 
   // Fetch current user ID from /me API
   useEffect(() => {
@@ -449,6 +454,7 @@ export default function Softphone({
         return false;
       }
       setMediaError("");
+      setCallHasVideo(video);
       return call(target, video);
     },
     [call],
@@ -463,6 +469,7 @@ export default function Softphone({
         return false;
       }
       setMediaError("");
+      setCallHasVideo(video);
       return answer(video);
     },
     [answer],
@@ -471,6 +478,194 @@ export default function Softphone({
   useEffect(() => {
     setMediaError(getMediaSecurityError());
   }, []);
+
+  // Reset callHasVideo on idle
+  useEffect(() => {
+    if (callState === "idle") {
+      setCallHasVideo(true);
+    }
+  }, [callState]);
+
+  // Poll Asterisk ARI for active channels to dynamically detect calls from GoIPS gateways
+  useEffect(() => {
+    if (callState === "idle" || !sipConfig.extension) {
+      setAriGoIpDetected(false);
+      setCheckingAri(false);
+      setAriChannelActive(false);
+      return;
+    }
+
+    let isMounted = true;
+    let pollInterval = null;
+
+    setAriChannelActive(true);
+    setCheckingAri(true);
+    setAriGoIpDetected(false);
+
+    const checkAriChannels = () => {
+      const myHeaders = new Headers();
+      myHeaders.append("Authorization", "Basic a3NpcF9hZG1pbjo0NGFmMDlmNTVmMGI4NWUyZWI1ZGI1N2VkNDhlODk5MA==");
+
+      const requestOptions = {
+        method: "GET",
+        headers: myHeaders,
+        redirect: "follow"
+      };
+
+      fetch("https://pbx.carmona.gov.ph/ari/channels", requestOptions)
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+          return res.json();
+        })
+        .then(channels => {
+          if (!isMounted) return;
+          if (!Array.isArray(channels)) {
+            setCheckingAri(false);
+            setAriChannelActive(false);
+            return;
+          }
+
+          // Find channels belonging to our registered extension
+          const myChannels = channels.filter(ch =>
+            ch.name && ch.name.includes(sipConfig.extension)
+          );
+
+          if (myChannels.length === 0) {
+            setAriGoIpDetected(false);
+            setCheckingAri(false);
+            setAriChannelActive(false);
+            return;
+          }
+
+          // We found an active channel for our extension!
+          setAriChannelActive(true);
+
+          // Find if there is any active GoIPS channel
+          const goIpChannels = channels.filter(ch =>
+            ch.name && ch.name.toLowerCase().includes("goips")
+          );
+
+          if (goIpChannels.length === 0) {
+            setAriGoIpDetected(false);
+            setCheckingAri(false);
+            return;
+          }
+
+          // Check if any of our channels is linked to a GoIPS channel
+          let linkedToGoIp = false;
+          for (const myCh of myChannels) {
+            const myBaseId = myCh.id ? myCh.id.split('.')[0] : "";
+            const myConnectedNum = myCh.connected?.number || "";
+            const myConnectedName = myCh.connected?.name || "";
+            const myCallerNum = myCh.caller?.number || "";
+
+            for (const goIpCh of goIpChannels) {
+              const goIpBaseId = goIpCh.id ? goIpCh.id.split('.')[0] : "";
+              const goIpCallerNum = goIpCh.caller?.number || "";
+              const goIpConnectedNum = goIpCh.connected?.number || "";
+
+              // Condition 1: Same base channel ID (e.g. sharing the same call session root ID)
+              const sameBaseId = myBaseId && goIpBaseId && myBaseId === goIpBaseId;
+
+              // Condition 2: Caller/Connected number matching
+              const numMatch =
+                (myConnectedNum && goIpCallerNum && myConnectedNum === goIpCallerNum) ||
+                (myConnectedName && goIpCallerNum && myConnectedName === goIpCallerNum) ||
+                (myCallerNum && goIpConnectedNum && myCallerNum === goIpConnectedNum);
+
+              if (sameBaseId || numMatch) {
+                linkedToGoIp = true;
+                break;
+              }
+            }
+            if (linkedToGoIp) break;
+          }
+
+          setAriGoIpDetected(linkedToGoIp);
+          setCheckingAri(false);
+        })
+        .catch(err => {
+          console.warn("ARI fetch failed:", err);
+          if (!isMounted) return;
+          setAriChannelActive(true);
+          setCheckingAri(false);
+          setAriGoIpDetected(false);
+        });
+    };
+
+    // Run immediately and poll every 2 seconds
+    checkAriChannels();
+    pollInterval = setInterval(checkAriChannels, 2000);
+
+    return () => {
+      isMounted = false;
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [callState, sipConfig.extension, incomingSession]);
+
+  // Background ARI health check to detect connection to pbx.carmona.gov.ph ARI
+  useEffect(() => {
+    if (!registered) {
+      setAriConnected(true);
+      return;
+    }
+
+    let isMounted = true;
+    let pollInterval = null;
+
+    const checkAriHealth = () => {
+      const myHeaders = new Headers();
+      myHeaders.append("Authorization", "Basic a3NpcF9hZG1pbjo0NGFmMDlmNTVmMGI4NWUyZWI1ZGI1N2VkNDhlODk5MA==");
+
+      const requestOptions = {
+        method: "GET",
+        headers: myHeaders,
+        redirect: "follow"
+      };
+
+      fetch("https://pbx.carmona.gov.ph/ari/channels", requestOptions)
+        .then(res => {
+          if (!isMounted) return;
+          if (res.ok) {
+            setAriConnected(true);
+          } else {
+            setAriConnected(false);
+          }
+        })
+        .catch(() => {
+          if (!isMounted) return;
+          // CORS blocks the request from the browser — this does NOT mean the
+          // Asterisk server is offline. Keep ariConnected true to avoid a
+          // false-positive "ARI Offline" banner on the operator screen.
+          setAriConnected(true);
+        });
+    };
+
+    checkAriHealth();
+    pollInterval = setInterval(checkAriHealth, 10000);
+
+    return () => {
+      isMounted = false;
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [registered]);
+
+  const isGoIpCall = useMemo(() => {
+    const callerName = callerData?.name || "";
+    const displayName = incomingSession?.remoteIdentity?.displayName || "";
+    const remoteUser = incomingSession?.remoteIdentity?.uri?.user || "";
+    const currentDial = dialInput || "";
+
+    return (
+      ariGoIpDetected ||
+      callerName.toLowerCase().includes("goips") ||
+      displayName.toLowerCase().includes("goips") ||
+      remoteUser.toLowerCase().includes("goips") ||
+      currentDial.toLowerCase().includes("goips")
+    );
+  }, [ariGoIpDetected, callerData, incomingSession, dialInput]);
+
+  const isAudioOnlyCall = !callHasVideo || isGoIpCall;
 
   // Sync recording config to useSIP whenever settings change
   useEffect(() => {
@@ -532,7 +727,7 @@ export default function Softphone({
       ext = dialInput;
     }
 
-    if (ext && String(ext).length > 10) {
+    if (ext && /^\d+$/.test(String(ext)) && String(ext).length > 10) {
       ext = String(ext).slice(-10);
     }
 
@@ -548,7 +743,7 @@ export default function Softphone({
           console.error("Failed to fetch caller data:", err);
           setFetchingCaller(false);
         });
-    } else if (!ext || callState === "idle") {
+    } else if (callState === "idle") {
       if (callerData !== null) setCallerData(null);
       if (fetchingCaller) setFetchingCaller(false);
     }
@@ -562,7 +757,8 @@ export default function Softphone({
       registered,
       reconnecting,
       extension: activeConfig?.extension,
-      error
+      error,
+      ariConnected
     });
 
     if (registered) {
@@ -572,7 +768,7 @@ export default function Softphone({
     } else {
       setShowStatusToast(true);
     }
-  }, [registered, reconnecting, activeConfig?.extension, error]);
+  }, [registered, reconnecting, activeConfig?.extension, error, ariConnected]);
 
   const handleCreateDirectory = async () => {
     try {
@@ -828,7 +1024,7 @@ export default function Softphone({
             <div className="sp-fs-col-title">Dialer</div>
 
             {/* Incoming call banner inside dialer col */}
-            {callState === "incoming" && (
+            {callState === "incoming" && callerData && ariChannelActive && (
               <div className="sp-fs-incoming">
                 <div
                   className="sp-incoming-avatar"
@@ -856,32 +1052,27 @@ export default function Softphone({
                   className="sp-incoming-actions"
                   style={{ justifyContent: "center", marginTop: 12 }}
                 >
-                  {effectiveAnswerVideo ? (
+                  {checkingAri ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.85rem', padding: '10px 0', width: '100%' }}>
+                      <div style={{ width: 14, height: 14, border: '2px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spSpin 0.6s linear infinite' }} />
+                      Verifying call line...
+                    </div>
+                  ) : isGoIpCall ? (
+                    <button
+                      className="sp-action-btn sp-action-answer"
+                      onClick={() => safeAnswer(false)}
+                      title="Answer Call"
+                    >
+                      <Phone size={18} />
+                    </button>
+                  ) : (
                     <button
                       className="sp-action-btn sp-action-video"
                       onClick={() => safeAnswer(true)}
+                      title="Answer with Video"
                     >
                       <Video size={18} />
                     </button>
-                  ) : (
-                    <>
-                      {showAudioBtn && (
-                        <button
-                          className="sp-action-btn sp-action-answer"
-                          onClick={() => safeAnswer(false)}
-                        >
-                          <Phone size={18} />
-                        </button>
-                      )}
-                      {showVideoBtn && (
-                        <button
-                          className="sp-action-btn sp-action-video"
-                          onClick={() => safeAnswer(true)}
-                        >
-                          <Video size={18} />
-                        </button>
-                      )}
-                    </>
                   )}
                   <button
                     className="sp-action-btn sp-action-reject"
@@ -967,80 +1158,160 @@ export default function Softphone({
                 />
               )}
             </div>
-            <div className="sp-fs-video-wrap">
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                className="sp-video-remote"
-                onLoadedData={() => setRemoteVideoLoaded(true)}
-              />
-              {!videoMuted && (
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="sp-video-local"
-                />
-              )}
-              {(callState === "ringing" || (callState === "active" && !remoteVideoLoaded)) && (
-                <div className="sp-video-placeholder" style={{ flexDirection: 'column', padding: '20px', textAlign: 'center' }}>
-                  <div className="sp-incoming-avatar" style={{ margin: "0 auto 12px", width: 80, height: 80 }}>
-                    {callerData?.avatar ? (
-                      <img src={callerData.avatar} alt="Citizen" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                    ) : (
-                      <User size={36} />
-                    )}
+            {isAudioOnlyCall ? (
+              <div className="sp-fs-video-wrap sp-audio-call-wrap" style={{ flex: 1, background: 'radial-gradient(circle at center, #1e1e38 0%, #0a0a14 100%)', display: 'flex', flexDirection: 'column' }}>
+                <div className="sp-audio-call-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '24px', textAlign: 'center' }}>
+
+                  {/* Beautiful glowing avatar */}
+                  <div className="sp-audio-avatar-wrap" style={{ position: 'relative', marginBottom: '20px' }}>
+                    <div className="sp-audio-avatar-glow" style={{
+                      position: 'absolute',
+                      inset: '-12px',
+                      borderRadius: '50%',
+                      background: 'rgba(79, 70, 229, 0.25)',
+                      filter: 'blur(16px)',
+                      animation: callState === 'active' ? 'pulseGlow 2s infinite' : 'none'
+                    }} />
+                    <div className="sp-incoming-avatar" style={{
+                      margin: "0",
+                      width: 140,
+                      height: 140,
+                      border: '3px solid rgba(129, 140, 248, 0.6)',
+                      background: 'rgba(79, 70, 229, 0.1)',
+                      boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
+                      animation: callState === 'ringing' ? 'ring 1.2s ease infinite' : 'none'
+                    }}>
+                      {callerData?.avatar ? (
+                        <img src={callerData.avatar} alt="Citizen" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                      ) : (
+                        <User size={64} style={{ color: '#818cf8' }} />
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: 4, color: '#e2e8f0' }}>
+
+                  {/* Caller Name */}
+                  <div style={{ fontSize: '1.8rem', fontWeight: '700', marginBottom: '8px', color: '#f8fafc', letterSpacing: '0.5px' }}>
                     {callerData?.name || dialInput || "Citizen"}
                   </div>
+
+                  {/* Caller Address */}
                   {callerData?.address && (
-                    <div style={{ fontSize: "0.85rem", opacity: 0.8, marginBottom: 16 }}>
-                      Address: {callerData.address}
+                    <div style={{ fontSize: '1rem', opacity: 0.8, color: '#94a3b8', marginBottom: '20px', maxWidth: '400px', lineHeight: '1.4' }}>
+                      {callerData.address}
                     </div>
                   )}
+
+                  {/* Calling Status & Duration */}
                   {callState === "ringing" ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#facc15', fontSize: '1rem', fontWeight: '500', background: 'rgba(250, 204, 21, 0.1)', padding: '8px 24px', borderRadius: '24px' }}>
                       <Loader size={18} className="spin" />
                       <span>Calling...</span>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
-                      <Phone size={18} />
-                      <span>In Call</span>
+                    <div style={{ color: '#4ade80', fontSize: '1rem', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase', background: 'rgba(74, 222, 128, 0.1)', padding: '6px 16px', borderRadius: '14px' }}>
+                      Ongoing Call
                     </div>
                   )}
                 </div>
-              )}
-              {callState === "idle" && (
-                <div className="sp-video-placeholder">
-                  <Phone size={32} style={{ opacity: 0.2, color: "white" }} />
-                  <span style={{ opacity: 0.4, color: "white" }}>
-                    No active call
-                  </span>
+
+                {/* Compact Audio Call Controls (only Mic/Mute and Hangup) */}
+                <div className="sp-call-controls sp-audio-call-controls" style={{ background: 'transparent', padding: '32px 20px 48px', position: 'relative' }}>
+                  <button
+                    className={`sp-ctrl-btn ${muted ? "active" : ""}`}
+                    onClick={handleMute}
+                    style={{ width: '56px', height: '56px' }}
+                    title={muted ? "Unmute Mic" : "Mute Mic"}
+                  >
+                    {muted ? <MicOff size={22} /> : <Mic size={22} />}
+                  </button>
+                  <button
+                    className="sp-ctrl-btn sp-ctrl-hangup"
+                    onClick={hangup}
+                    style={{ width: '64px', height: '64px', boxShadow: '0 8px 24px rgba(239, 68, 68, 0.4)' }}
+                    title="Hang Up"
+                  >
+                    <PhoneOff size={26} />
+                  </button>
                 </div>
-              )}
-            </div>
-            {(callState === "active" || callState === "ringing") && (
-              <div className="sp-call-controls">
-                <button
-                  className={`sp-ctrl-btn ${muted ? "active" : ""}`}
-                  onClick={handleMute}
-                >
-                  {muted ? <MicOff size={16} /> : <Mic size={16} />}
-                </button>
-                <button className="sp-ctrl-btn sp-ctrl-hangup" onClick={hangup}>
-                  <PhoneOff size={18} />
-                </button>
-                <button
-                  className={`sp-ctrl-btn ${videoMuted ? "active" : ""}`}
-                  onClick={handleVideoMute}
-                >
-                  {videoMuted ? <VideoOff size={16} /> : <Video size={16} />}
-                </button>
               </div>
+            ) : (
+              <>
+                <div className="sp-fs-video-wrap">
+                  <video
+                    ref={remoteVideoRef}
+                    autoPlay
+                    playsInline
+                    className="sp-video-remote"
+                    onLoadedData={() => setRemoteVideoLoaded(true)}
+                  />
+                  {!videoMuted && (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="sp-video-local"
+                    />
+                  )}
+                  {(callState === "ringing" || (callState === "active" && !remoteVideoLoaded)) && (
+                    <div className="sp-video-placeholder" style={{ flexDirection: 'column', padding: '20px', textAlign: 'center' }}>
+                      <div className="sp-incoming-avatar" style={{ margin: "0 auto 12px", width: 80, height: 80 }}>
+                        {callerData?.avatar ? (
+                          <img src={callerData.avatar} alt="Citizen" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                        ) : (
+                          <User size={36} />
+                        )}
+                      </div>
+                      <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: 4, color: '#e2e8f0' }}>
+                        {callerData?.name || dialInput || "Citizen"}
+                      </div>
+                      {callerData?.address && (
+                        <div style={{ fontSize: "0.85rem", opacity: 0.8, marginBottom: 16 }}>
+                          Address: {callerData.address}
+                        </div>
+                      )}
+                      {callState === "ringing" ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
+                          <Loader size={18} className="spin" />
+                          <span>Calling...</span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
+                          <Phone size={18} />
+                          <span>In Call</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {callState === "idle" && (
+                    <div className="sp-video-placeholder">
+                      <Phone size={32} style={{ opacity: 0.2, color: "white" }} />
+                      <span style={{ opacity: 0.4, color: "white" }}>
+                        No active call
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {(callState === "active" || callState === "ringing") && (
+                  <div className="sp-call-controls">
+                    <button
+                      className={`sp-ctrl-btn ${muted ? "active" : ""}`}
+                      onClick={handleMute}
+                    >
+                      {muted ? <MicOff size={16} /> : <Mic size={16} />}
+                    </button>
+                    <button className="sp-ctrl-btn sp-ctrl-hangup" onClick={hangup}>
+                      <PhoneOff size={18} />
+                    </button>
+                    <button
+                      className={`sp-ctrl-btn ${videoMuted ? "active" : ""}`}
+                      onClick={handleVideoMute}
+                    >
+                      {videoMuted ? <VideoOff size={16} /> : <Video size={16} />}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -1732,7 +2003,7 @@ export default function Softphone({
           )}
 
           {/* Incoming Call Overlay */}
-          {callState === "incoming" && (
+          {callState === "incoming" && callerData && ariChannelActive && (
             <div className="sp-incoming-overlay">
               <div className="sp-incoming-card">
                 <div className="sp-incoming-avatar">
@@ -1755,32 +2026,27 @@ export default function Softphone({
                 )}
                 <br />
                 <div className="sp-incoming-actions">
-                  {effectiveAnswerVideo ? (
+                  {checkingAri ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.9rem', padding: '10px 0', width: '100%' }}>
+                      <div style={{ width: 16, height: 16, border: '2px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spSpin 0.6s linear infinite' }} />
+                      Verifying line...
+                    </div>
+                  ) : isGoIpCall ? (
+                    <button
+                      className="sp-action-btn sp-action-answer"
+                      onClick={() => safeAnswer(false)}
+                      title="Answer Call"
+                    >
+                      <Phone size={20} />
+                    </button>
+                  ) : (
                     <button
                       className="sp-action-btn sp-action-video"
                       onClick={() => safeAnswer(true)}
+                      title="Answer with Video"
                     >
                       <Video size={20} />
                     </button>
-                  ) : (
-                    <>
-                      {showAudioBtn && (
-                        <button
-                          className="sp-action-btn sp-action-answer"
-                          onClick={() => safeAnswer(false)}
-                        >
-                          <Phone size={20} />
-                        </button>
-                      )}
-                      {showVideoBtn && (
-                        <button
-                          className="sp-action-btn sp-action-video"
-                          onClick={() => safeAnswer(true)}
-                        >
-                          <Video size={20} />
-                        </button>
-                      )}
-                    </>
                   )}
                   <button
                     className="sp-action-btn sp-action-reject"
@@ -1812,10 +2078,15 @@ export default function Softphone({
                 style={
                   expanded
                     ? {}
-                    : {
-                      width: `${videoSize.size.w}px`,
-                      height: `${videoSize.size.h}px`,
-                    }
+                    : isAudioOnlyCall
+                      ? {
+                        width: "320px",
+                        height: "460px",
+                      }
+                      : {
+                        width: `${videoSize.size.w}px`,
+                        height: `${videoSize.size.h}px`,
+                      }
                 }
               >
                 <div className="sp-panel-inner">
@@ -1827,92 +2098,172 @@ export default function Softphone({
                     <div
                       className={`sp-call-dot ${callState === "active" ? "active" : "ringing"}`}
                     />
-                    <button
-                      className="sp-icon-btn"
-                      onClick={() => setExpanded((e) => !e)}
-                      style={{ marginLeft: "auto" }}
-                    >
-                      {expanded ? (
-                        <Minimize2 size={13} />
-                      ) : (
-                        <Maximize2 size={13} />
-                      )}
-                    </button>
-                  </div>
-                  <div className="sp-video-wrap">
-                    <video
-                      ref={remoteVideoRef}
-                      autoPlay
-                      playsInline
-                      className="sp-video-remote"
-                      onLoadedData={() => setRemoteVideoLoaded(true)}
-                    />
-                    {!videoMuted && (
-                      <video
-                        ref={localVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="sp-video-local"
-                      />
+                    {!isAudioOnlyCall && (
+                      <button
+                        className="sp-icon-btn"
+                        onClick={() => setExpanded((e) => !e)}
+                        style={{ marginLeft: "auto" }}
+                      >
+                        {expanded ? (
+                          <Minimize2 size={13} />
+                        ) : (
+                          <Maximize2 size={13} />
+                        )}
+                      </button>
                     )}
-                    {(callState === "ringing" || (callState === "active" && !remoteVideoLoaded)) && (
-                      <div className="sp-video-placeholder" style={{ flexDirection: 'column', padding: '20px', textAlign: 'center' }}>
-                        <div className="sp-incoming-avatar" style={{ margin: "0 auto 12px", width: 80, height: 80 }}>
-                          {callerData?.avatar ? (
-                            <img src={callerData.avatar} alt="Citizen" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                          ) : (
-                            <User size={36} />
-                          )}
+                  </div>
+                  {isAudioOnlyCall ? (
+                    <div className="sp-video-wrap sp-audio-call-wrap" style={{ minHeight: '380px', background: 'radial-gradient(circle at center, #1e1e38 0%, #0a0a14 100%)', display: 'flex', flexDirection: 'column' }}>
+                      <div className="sp-audio-call-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '24px', textAlign: 'center' }}>
+
+                        {/* Beautiful glowing avatar */}
+                        <div className="sp-audio-avatar-wrap" style={{ position: 'relative', marginBottom: '20px' }}>
+                          <div className="sp-audio-avatar-glow" style={{
+                            position: 'absolute',
+                            inset: '-8px',
+                            borderRadius: '50%',
+                            background: 'rgba(79, 70, 229, 0.25)',
+                            filter: 'blur(12px)',
+                            animation: callState === 'active' ? 'pulseGlow 2s infinite' : 'none'
+                          }} />
+                          <div className="sp-incoming-avatar" style={{
+                            margin: "0",
+                            width: 100,
+                            height: 100,
+                            border: '2px solid rgba(129, 140, 248, 0.6)',
+                            background: 'rgba(79, 70, 229, 0.1)',
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                            animation: callState === 'ringing' ? 'ring 1.2s ease infinite' : 'none'
+                          }}>
+                            {callerData?.avatar ? (
+                              <img src={callerData.avatar} alt="Citizen" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                            ) : (
+                              <User size={48} style={{ color: '#818cf8' }} />
+                            )}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: 4, color: '#e2e8f0' }}>
+
+                        {/* Caller Name */}
+                        <div style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: '6px', color: '#f8fafc', letterSpacing: '0.5px' }}>
                           {callerData?.name || dialInput || "Citizen"}
                         </div>
+
+                        {/* Caller Address */}
                         {callerData?.address && (
-                          <div style={{ fontSize: "0.85rem", opacity: 0.8, marginBottom: 16 }}>
-                            Address: {callerData.address}
+                          <div style={{ fontSize: "0.9rem", opacity: 0.8, color: '#94a3b8', marginBottom: '16px', maxWidth: '280px', lineHeight: '1.4' }}>
+                            {callerData.address}
                           </div>
                         )}
+
+                        {/* Calling Status & Duration */}
                         {callState === "ringing" ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
-                            <Loader size={18} className="spin" />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#facc15', fontSize: '0.95rem', fontWeight: '500', background: 'rgba(250, 204, 21, 0.1)', padding: '6px 16px', borderRadius: '20px' }}>
+                            <Loader size={16} className="spin" />
                             <span>Calling...</span>
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
-                            <Phone size={18} />
-                            <span>In Call</span>
+                          <div style={{ color: '#4ade80', fontSize: '0.95rem', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase', background: 'rgba(74, 222, 128, 0.1)', padding: '4px 12px', borderRadius: '12px' }}>
+                            Ongoing Call
                           </div>
                         )}
                       </div>
-                    )}
-                    <div className="sp-call-controls">
-                      <button
-                        className={`sp-ctrl-btn ${muted ? "active" : ""}`}
-                        onClick={handleMute}
-                      >
-                        {muted ? <MicOff size={16} /> : <Mic size={16} />}
-                      </button>
-                      <button
-                        className="sp-ctrl-btn sp-ctrl-hangup"
-                        onClick={hangup}
-                      >
-                        <PhoneOff size={18} />
-                      </button>
-                      <button
-                        className={`sp-ctrl-btn ${videoMuted ? "active" : ""}`}
-                        onClick={handleVideoMute}
-                      >
-                        {videoMuted ? (
-                          <VideoOff size={16} />
-                        ) : (
-                          <Video size={16} />
-                        )}
-                      </button>
+
+                      {/* Compact Audio Call Controls (only Mic/Mute and Hangup) */}
+                      <div className="sp-call-controls sp-audio-call-controls" style={{ background: 'transparent', padding: '24px 20px 28px', position: 'relative' }}>
+                        <button
+                          className={`sp-ctrl-btn ${muted ? "active" : ""}`}
+                          onClick={handleMute}
+                          style={{ width: '48px', height: '48px' }}
+                          title={muted ? "Unmute Mic" : "Mute Mic"}
+                        >
+                          {muted ? <MicOff size={20} /> : <Mic size={20} />}
+                        </button>
+                        <button
+                          className="sp-ctrl-btn sp-ctrl-hangup"
+                          onClick={hangup}
+                          style={{ width: '56px', height: '56px', boxShadow: '0 8px 20px rgba(239, 68, 68, 0.4)' }}
+                          title="Hang Up"
+                        >
+                          <PhoneOff size={22} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="sp-video-wrap">
+                      <video
+                        ref={remoteVideoRef}
+                        autoPlay
+                        playsInline
+                        className="sp-video-remote"
+                        onLoadedData={() => setRemoteVideoLoaded(true)}
+                      />
+                      {!videoMuted && (
+                        <video
+                          ref={localVideoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="sp-video-local"
+                        />
+                      )}
+                      {(callState === "ringing" || (callState === "active" && !remoteVideoLoaded)) && (
+                        <div className="sp-video-placeholder" style={{ flexDirection: 'column', padding: '20px', textAlign: 'center' }}>
+                          <div className="sp-incoming-avatar" style={{ margin: "0 auto 12px", width: 80, height: 80 }}>
+                            {callerData?.avatar ? (
+                              <img src={callerData.avatar} alt="Citizen" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                            ) : (
+                              <User size={36} />
+                            )}
+                          </div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: 4, color: '#e2e8f0' }}>
+                            {callerData?.name || dialInput || "Citizen"}
+                          </div>
+                          {callerData?.address && (
+                            <div style={{ fontSize: "0.85rem", opacity: 0.8, marginBottom: 16 }}>
+                              Address: {callerData.address}
+                            </div>
+                          )}
+                          {callState === "ringing" ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
+                              <Loader size={18} className="spin" />
+                              <span>Calling...</span>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.8, color: '#cbd5e1' }}>
+                              <Phone size={18} />
+                              <span>In Call</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="sp-call-controls">
+                        <button
+                          className={`sp-ctrl-btn ${muted ? "active" : ""}`}
+                          onClick={handleMute}
+                        >
+                          {muted ? <MicOff size={16} /> : <Mic size={16} />}
+                        </button>
+                        <button
+                          className="sp-ctrl-btn sp-ctrl-hangup"
+                          onClick={hangup}
+                        >
+                          <PhoneOff size={18} />
+                        </button>
+                        <button
+                          className={`sp-ctrl-btn ${videoMuted ? "active" : ""}`}
+                          onClick={handleVideoMute}
+                        >
+                          {videoMuted ? (
+                            <VideoOff size={16} />
+                          ) : (
+                            <Video size={16} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {!expanded && (
+                {!expanded && !isAudioOnlyCall && (
                   <div
                     className="sp-resize-handle"
                     onMouseDown={videoSize.onResizeStart}
