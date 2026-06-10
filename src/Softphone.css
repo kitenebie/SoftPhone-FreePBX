@@ -68,7 +68,7 @@ body {
   width: min(1200px, 96vw);
   max-height: min(90vh, 700px);
   overflow-y: auto;
-  z-index: 9300;
+  z-index: 99999;
 }
 
 /* Backdrop behind settings */
@@ -78,7 +78,7 @@ body {
   background: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 9250;
+  z-index: 99998;
   pointer-events: auto;
 }
 
@@ -681,30 +681,24 @@ body {
   transform: scale(0.98);
 }
 
-/* ── Incoming Call Overlay ───────────────────────────────────── */
-.sp-incoming-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9200;
+/* ── Incoming Call Panel ────────────────────────────────────── */
+.sp-incoming-panel {
+  position: absolute !important;
   pointer-events: auto;
-}
-
-.sp-incoming-card {
+  z-index: 9200;
+  width: 320px;
   background: rgba(12, 12, 24, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-radius: 24px;
-  padding: 40px 48px;
-  text-align: center;
+  border-radius: 16px;
   box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
   animation: slideUp 0.3s ease;
+}
+
+.sp-incoming-body {
+  padding: 24px;
+  text-align: center;
 }
 
 @keyframes slideUp {
@@ -757,7 +751,7 @@ body {
   font-size: 1.35rem;
   font-weight: 700;
   color: #e2e8f0;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
 }
 
 .sp-incoming-actions {
@@ -1329,7 +1323,7 @@ body {
   -webkit-backdrop-filter: blur(24px);
   border-radius: 16px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-  z-index: 9400;
+  z-index: 99999;
   animation: slideUp 0.3s ease;
 }
 
