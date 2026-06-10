@@ -6,7 +6,7 @@ import endCallSound    from "../assets/ringtones/end_call.mp3";
 const RECONNECT_DELAY = 3000;
 const REGISTRATION_EXPIRES = 600; // 10 minutes (600 seconds)
 
-export function useSIP({ server, wsServer, extension, password, displayName }) {
+export function useSIP({ server, wsServer, extension, password, displayName, audioCodecs, videoCodecs }) {
   const [registered,      setRegistered]      = useState(false);
   const [callState,       setCallState]       = useState("idle");
   const [incomingSession, setIncomingSession] = useState(null);
@@ -23,6 +23,11 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
   const unmountedRef      = useRef(false);
   const configRef         = useRef({});
   const callStateRef      = useRef("idle");
+
+  const codecsRef         = useRef({ audioCodecs, videoCodecs });
+  useEffect(() => {
+    codecsRef.current = { audioCodecs, videoCodecs };
+  }, [audioCodecs, videoCodecs]);
 
   // Ringtone players
   const ringAudio = useRef(null);
@@ -168,7 +173,7 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
 
       recorder.start(1000); // collect chunks every 1s
       mediaRecorderRef.current = recorder;
-    } catch (_e) { /* recording not supported */ }
+    } catch { /* recording not supported */ }
   }
 
   function stopRecording() {
@@ -227,6 +232,63 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
       }
     }
   }
+  function logNegotiatedCodecs(session) {
+    try {
+      const pc = session?.sessionDescriptionHandler?.peerConnection;
+      if (!pc) {
+        console.log("📝 Codec Log: PeerConnection not available.");
+        return;
+      }
+
+      // Parse from SDP
+      const localSdp = pc.localDescription?.sdp;
+      const remoteSdp = pc.remoteDescription?.sdp;
+
+      const parseCodecs = (sdp) => {
+        if (!sdp) return [];
+        const matches = sdp.matchAll(/^a=rtpmap:(\d+)\s+([a-zA-Z0-9\-]+)\/(\d+)/gm);
+        const codecs = [];
+        for (const match of matches) {
+          codecs.push(`${match[2]} (${match[3]}Hz, PT=${match[1]})`);
+        }
+        return [...new Set(codecs)];
+      };
+
+      console.log("📞 [useSIP] SDP Negotiated Codecs:");
+      console.log("   - Local SDP Codecs:", parseCodecs(localSdp).join(", ") || "None");
+      console.log("   - Remote SDP Codecs:", parseCodecs(remoteSdp).join(", ") || "None");
+
+      // Query active stats after a short delay to let traffic flow
+      setTimeout(() => {
+        if (pc.signalingState === "closed") return;
+        pc.getStats().then((stats) => {
+          let outboundAudio = "Unknown";
+          let inboundAudio = "Unknown";
+          
+          stats.forEach((report) => {
+            if (report.type === "outbound-rtp" && report.kind === "audio") {
+              const codec = stats.get(report.codecId);
+              if (codec) outboundAudio = `${codec.mimeType} (payloadType=${codec.payloadType})`;
+            }
+            if (report.type === "inbound-rtp" && report.kind === "audio") {
+              const codec = stats.get(report.codecId);
+              if (codec) inboundAudio = `${codec.mimeType} (payloadType=${codec.payloadType})`;
+            }
+          });
+
+          console.log("🎵 [useSIP] Active Audio Codecs (getStats):");
+          console.log(`   - Outgoing (Browser -> PBX): ${outboundAudio}`);
+          console.log(`   - Incoming (PBX -> Browser): ${inboundAudio}`);
+        }).catch((err) => {
+          console.error("❌ [useSIP] Failed to get RTCPeerConnection stats:", err);
+        });
+      }, 1500);
+
+    } catch (err) {
+      console.error("❌ [useSIP] Error logging negotiated codecs:", err);
+    }
+  }
+
   function wireSession(session) {
     // Capture the session identity at wire time
     const thisSession = session;
@@ -240,6 +302,7 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
         S.current.callState("active");
         S.current.incomingSession(null);
         attachMedia(thisSession);
+        logNegotiatedCodecs(thisSession);
         // Start recording after short delay to ensure tracks are ready
         setTimeout(() => startRecording(thisSession), 500);
       } else if (state === SessionState.Terminated) {
@@ -272,7 +335,22 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
       sessionDescriptionHandlerFactoryOptions: {
         iceGatheringTimeout: 5000,
         peerConnectionConfiguration: {
-          iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            {
+              urls: [
+                "turn:38.60.246.111:3478?transport=udp",
+                "turn:38.60.246.111:3478?transport=tcp",
+                "turns:38.60.246.111:5349?transport=tcp"
+              ],
+              username: "Turn_server",
+              credential: "K!3jsvteU9UvNKpawJhBPGSS2@V4rd"
+            }
+          ],
+          iceTransportPolicy: "all",
+          bundlePolicy: "max-bundle",
+          rtcpMuxPolicy: "require"
         },
       },
       delegate: {
@@ -283,7 +361,7 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
           playRing();
           wireSession(invitation);
         },
-        onDisconnect(err) {
+        onDisconnect() {
           S.current.registered(false);
           S.current.callState("idle");
           sessionRef.current = null;
@@ -349,7 +427,17 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
       uaRef.current?.stop().catch(() => {});
       uaRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server, wsServer, extension, password, displayName]);
+
+  const sdpModifier = (sessionDescription) => {
+    const audioCodecsList = codecsRef.current.audioCodecs || ["PCMU", "PCMA"];
+    const videoCodecsList = codecsRef.current.videoCodecs || ["VP8", "H264"];
+    console.log("📋 SDP BEFORE:", sessionDescription.sdp);
+    sessionDescription.sdp = reorderCodecs(sessionDescription.sdp, audioCodecsList, videoCodecsList);
+    console.log("📋 SDP AFTER:", sessionDescription.sdp);
+    return Promise.resolve(sessionDescription);
+  };
 
   // ── Public API ────────────────────────────────────────────────
   function call(target, withVideo = false) {
@@ -361,6 +449,7 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
       sessionDescriptionHandlerOptions: {
         constraints: { audio: true, video: withVideo },
       },
+      sessionDescriptionHandlerModifiers: [sdpModifier]
     });
 
     sessionRef.current = inviter;
@@ -388,6 +477,7 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
         sessionDescriptionHandlerOptions: {
           constraints: { audio: true, video: withVideo },
         },
+        sessionDescriptionHandlerModifiers: [sdpModifier]
       })
       .catch((e) => {
         S.current.error(`Answer failed: ${e.message}`);
@@ -403,7 +493,7 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
     try {
       if (s.state === SessionState.Established) s.bye();
       else { s.cancel?.(); s.reject?.(); }
-    } catch (_e) { /* ignore */ }
+    } catch { /* ignore */ }
     S.current.callState("idle");
     sessionRef.current = null;
     S.current.incomingSession(null);
@@ -459,4 +549,134 @@ export function useSIP({ server, wsServer, extension, password, displayName }) {
     call, answer, hangup, mute, toggleVideo,
     setRecordingConfig, setDirectoryHandle,
   };
+}
+
+function reorderCodecs(sdp, audioCodecs, videoCodecs) {
+  // Normalize line endings
+  const lines = sdp.split(/\r?\n/);
+  const modifiedLines = [];
+
+  let currentMedia = null; // 'audio', 'video', or null
+  let mediaLine = null;
+  let mediaPayloads = [];
+
+  // Maps payload type (string) -> codec name/description (lowercase)
+  let ptToCodec = {
+    "0": "pcmu",
+    "8": "pcma",
+    "9": "g722",
+    "18": "g729"
+  };
+
+  // We'll collect all rtpmap/fmtp/rtcp-fb lines within the current media section
+  // to filter them later based on which payload types are kept.
+  let mediaLines = [];
+
+  // Helper to process the media section when it ends or when we hit a new media section
+  function flushMediaSection() {
+    if (!mediaLine) return;
+
+    const parts = mediaLine.split(" ");
+    const allowedCodecs = currentMedia === "audio" ? audioCodecs : videoCodecs;
+    const allowedLower = (allowedCodecs || []).map(c => c.toLowerCase());
+
+    const keptPayloads = [];
+    const dtmfAndCnPayloads = [];
+
+    // Group our payload types by codec
+    const codecToPts = {};
+    for (const pt of mediaPayloads) {
+      const codec = ptToCodec[pt];
+      if (codec) {
+        if (!codecToPts[codec]) {
+          codecToPts[codec] = [];
+        }
+        codecToPts[codec].push(pt);
+      }
+    }
+
+    // Add allowed codecs in their preferred order
+    for (const codecName of allowedLower) {
+      for (const [sdpCodec, pts] of Object.entries(codecToPts)) {
+        if (sdpCodec === codecName || sdpCodec.startsWith(codecName + "/") || sdpCodec.startsWith(codecName + " ")) {
+          for (const pt of pts) {
+            if (!keptPayloads.includes(pt)) {
+              keptPayloads.push(pt);
+            }
+          }
+        }
+      }
+    }
+
+    // Find telephone-event (DTMF) and comfort noise (CN) to preserve them
+    for (const pt of mediaPayloads) {
+      const codec = ptToCodec[pt];
+      if (codec && (codec.includes("telephone-event") || codec === "cn")) {
+        if (!dtmfAndCnPayloads.includes(pt)) {
+          dtmfAndCnPayloads.push(pt);
+        }
+      }
+    }
+
+    // If no configured codecs match, fallback to original payloads to avoid completely breaking
+    let finalPayloads = keptPayloads.concat(dtmfAndCnPayloads);
+    if (finalPayloads.length === 0) {
+      finalPayloads = mediaPayloads;
+    }
+
+    // Build new m= line
+    const newMediaLine = parts.slice(0, 3).concat(finalPayloads).join(" ");
+    modifiedLines.push(newMediaLine);
+
+    // Filter the session lines for this media section (like a=rtpmap, a=fmtp, a=rtcp-fb)
+    for (const line of mediaLines) {
+      const match = line.match(/^a=(rtpmap|fmtp|rtcp-fb):(\d+)\b/i);
+      if (match) {
+        const pt = match[2];
+        if (finalPayloads.includes(pt)) {
+          modifiedLines.push(line);
+        }
+      } else {
+        modifiedLines.push(line);
+      }
+    }
+
+    // Reset for next section
+    mediaLine = null;
+    mediaPayloads = [];
+    mediaLines = [];
+    ptToCodec = {
+      "0": "pcmu",
+      "8": "pcma",
+      "9": "g722",
+      "18": "g729"
+    };
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    if (line.startsWith("m=")) {
+      flushMediaSection();
+      const parts = line.split(" ");
+      currentMedia = parts[0].substring(2); // 'audio' or 'video'
+      mediaLine = line;
+      mediaPayloads = parts.slice(3);
+    } else if (mediaLine) {
+      const rtpmapMatch = line.match(/^a=rtpmap:(\d+)\s+(.+)/i);
+      if (rtpmapMatch) {
+        const pt = rtpmapMatch[1];
+        const codec = rtpmapMatch[2].trim().toLowerCase();
+        ptToCodec[pt] = codec;
+      }
+      mediaLines.push(line);
+    } else {
+      modifiedLines.push(line);
+    }
+  }
+
+  flushMediaSection();
+
+  return modifiedLines.join("\r\n") + "\r\n";
 }

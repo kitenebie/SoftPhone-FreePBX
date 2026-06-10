@@ -240,7 +240,7 @@ export default function Softphone({
     extension: saved?.extension || extensionProp || "",
     password: saved?.password || passwordProp || "",
     displayName: saved?.displayName || displayNameProp || "",
-    audioCodecs: saved?.audioCodecs || ["PCMU", "PCMA", "opus"],
+    audioCodecs: saved?.audioCodecs || ["PCMU", "PCMA"],
     videoCodecs: saved?.videoCodecs || ["VP8", "H264"],
     autoRecord: saved?.autoRecord ?? autoRecord,
     recordingDir:
@@ -301,6 +301,8 @@ export default function Softphone({
         wsProtocol: proto,
         wsPort: port,
         displayName: saved?.displayName || displayNameProp || "",
+        audioCodecs: saved?.audioCodecs || ["PCMU", "PCMA"],
+        videoCodecs: saved?.videoCodecs || ["VP8", "H264"],
       });
     return null;
   });
@@ -328,6 +330,7 @@ export default function Softphone({
   const [checkingAri, setCheckingAri] = useState(false);
   const [ariChannelActive, setAriChannelActive] = useState(false);
   const [ariConnected, setAriConnected] = useState(true);
+  const [ariCallType, setAriCallType] = useState(null); // 'VIDEO', 'AUDIO', or null
 
   // Fetch current user ID from /me API
   useEffect(() => {
@@ -399,6 +402,8 @@ export default function Softphone({
               extension: data.extension,
               password: data.password,
               displayName: data.display_name ?? "",
+              audioCodecs: data.audio_codecs ?? form.audioCodecs,
+              videoCodecs: data.video_codecs ?? form.videoCodecs,
             })
           );
         }
@@ -415,12 +420,20 @@ export default function Softphone({
     ? VIDEO_CODECS.filter((c) => settingConfigCodecs.video.codecs.includes(c))
     : [];
 
-  const sipConfig = activeConfig ?? {
-    server: "",
-    wsServer: "",
-    extension: "",
-    password: "",
-  };
+  const sipConfig = activeConfig
+    ? {
+        ...activeConfig,
+        audioCodecs: activeConfig.audioCodecs || form.audioCodecs,
+        videoCodecs: activeConfig.videoCodecs || form.videoCodecs,
+      }
+    : {
+        server: "",
+        wsServer: "",
+        extension: "",
+        password: "",
+        audioCodecs: form.audioCodecs,
+        videoCodecs: form.videoCodecs,
+      };
   const {
     registered,
     callState,
@@ -439,10 +452,11 @@ export default function Softphone({
     setDirectoryHandle,
   } = useSIP(sipConfig);
 
-  const fabPanel = useDraggable({ x: window.innerWidth - 90, y: 24 });
+  const { ref: dragRef, pos: dragPos } = useDraggable({ x: window.innerWidth - 90, y: 24 });
   const videoSize = useResizable({ w: 360, h: 700 }, { w: 260, h: 700 });
   const videoNodeRef = useRef(null);
   const dialerNodeRef = useRef(null);
+  const incomingNodeRef = useRef(null);
   const wsPreview = buildWs(SIP_WS_PROTOCOL, form.server, SIP_WS_PORT) || `${SIP_WS_PROTOCOL}://...:${SIP_WS_PORT}${SIP_WS_PATH}`;
 
   const safeCall = useCallback(
@@ -483,6 +497,7 @@ export default function Softphone({
   useEffect(() => {
     if (callState === "idle") {
       setCallHasVideo(true);
+      setAriCallType(null);
     }
   }, [callState]);
 
@@ -492,6 +507,7 @@ export default function Softphone({
       setAriGoIpDetected(false);
       setCheckingAri(false);
       setAriChannelActive(false);
+      setAriCallType(null);
       return;
     }
 
@@ -534,6 +550,7 @@ export default function Softphone({
             setAriGoIpDetected(false);
             setCheckingAri(false);
             setAriChannelActive(false);
+            setAriCallType(null);
             return;
           }
 
@@ -545,44 +562,108 @@ export default function Softphone({
             ch.name && ch.name.toLowerCase().includes("goips")
           );
 
-          if (goIpChannels.length === 0) {
-            setAriGoIpDetected(false);
-            setCheckingAri(false);
-            return;
-          }
-
-          // Check if any of our channels is linked to a GoIPS channel
           let linkedToGoIp = false;
-          for (const myCh of myChannels) {
-            const myBaseId = myCh.id ? myCh.id.split('.')[0] : "";
-            const myConnectedNum = myCh.connected?.number || "";
-            const myConnectedName = myCh.connected?.name || "";
-            const myCallerNum = myCh.caller?.number || "";
+          if (goIpChannels.length > 0) {
+            // Check if any of our channels is linked to a GoIPS channel
+            for (const myCh of myChannels) {
+              const myBaseId = myCh.id ? myCh.id.split('.')[0] : "";
+              const myConnectedNum = myCh.connected?.number || "";
+              const myConnectedName = myCh.connected?.name || "";
+              const myCallerNum = myCh.caller?.number || "";
 
-            for (const goIpCh of goIpChannels) {
-              const goIpBaseId = goIpCh.id ? goIpCh.id.split('.')[0] : "";
-              const goIpCallerNum = goIpCh.caller?.number || "";
-              const goIpConnectedNum = goIpCh.connected?.number || "";
+              for (const goIpCh of goIpChannels) {
+                const goIpBaseId = goIpCh.id ? goIpCh.id.split('.')[0] : "";
+                const goIpCallerNum = goIpCh.caller?.number || "";
+                const goIpConnectedNum = goIpCh.connected?.number || "";
 
-              // Condition 1: Same base channel ID (e.g. sharing the same call session root ID)
-              const sameBaseId = myBaseId && goIpBaseId && myBaseId === goIpBaseId;
+                // Condition 1: Same base channel ID (e.g. sharing the same call session root ID)
+                const sameBaseId = myBaseId && goIpBaseId && myBaseId === goIpBaseId;
 
-              // Condition 2: Caller/Connected number matching
-              const numMatch =
-                (myConnectedNum && goIpCallerNum && myConnectedNum === goIpCallerNum) ||
-                (myConnectedName && goIpCallerNum && myConnectedName === goIpCallerNum) ||
-                (myCallerNum && goIpConnectedNum && myCallerNum === goIpConnectedNum);
+                // Condition 2: Caller/Connected number matching
+                const numMatch =
+                  (myConnectedNum && goIpCallerNum && myConnectedNum === goIpCallerNum) ||
+                  (myConnectedName && goIpCallerNum && myConnectedName === goIpCallerNum) ||
+                  (myCallerNum && goIpConnectedNum && myCallerNum === goIpConnectedNum);
 
-              if (sameBaseId || numMatch) {
-                linkedToGoIp = true;
-                break;
+                if (sameBaseId || numMatch) {
+                  linkedToGoIp = true;
+                  break;
+                }
               }
+              if (linkedToGoIp) break;
             }
-            if (linkedToGoIp) break;
           }
 
           setAriGoIpDetected(linkedToGoIp);
-          setCheckingAri(false);
+
+          // Locate the caller channel to fetch SHARED(CALL_TYPE)
+          let callerChannel = null;
+          for (const myCh of myChannels) {
+            const myBaseId = myCh.id ? myCh.id.split('.')[0] : "";
+            const myCallerNum = myCh.caller?.number || "";
+
+            const candidate = channels.find(ch => {
+              if (ch.id === myCh.id) return false;
+              const chBaseId = ch.id ? ch.id.split('.')[0] : "";
+              const sameBase = myBaseId && chBaseId && myBaseId === chBaseId;
+              
+              const isPjsip = ch.name && ch.name.startsWith("PJSIP/");
+              const isOperator = ch.name && ch.name.includes(sipConfig.extension);
+              
+              if (isPjsip && !isOperator && (sameBase || (myCallerNum && ch.name.includes(myCallerNum)))) {
+                return true;
+              }
+              return false;
+            });
+
+            if (candidate) {
+              callerChannel = candidate;
+              break;
+            }
+          }
+
+          if (!callerChannel) {
+            for (const myCh of myChannels) {
+              const myCallerNum = myCh.caller?.number || "";
+              const candidate = channels.find(ch => {
+                if (ch.id === myCh.id) return false;
+                const isOperator = ch.name && ch.name.includes(sipConfig.extension);
+                if (isOperator) return false;
+                
+                const myBaseId = myCh.id ? myCh.id.split('.')[0] : "";
+                const chBaseId = ch.id ? ch.id.split('.')[0] : "";
+                const sameBase = myBaseId && chBaseId && myBaseId === chBaseId;
+                
+                return sameBase || (myCallerNum && ch.name.includes(myCallerNum)) || (ch.caller?.number === myCallerNum);
+              });
+              if (candidate) {
+                callerChannel = candidate;
+                break;
+              }
+            }
+          }
+
+          if (callerChannel) {
+            fetch(`https://pbx.carmona.gov.ph/ari/channels/${callerChannel.id}/variable?variable=CALL_TYPE`, requestOptions)
+              .then(vRes => {
+                if (!vRes.ok) throw new Error("Failed to fetch variable");
+                return vRes.json();
+              })
+              .then(vData => {
+                if (!isMounted) return;
+                const val = vData.value ? vData.value.toUpperCase() : null;
+                console.log(`[ARI] Fetched CALL_TYPE for channel ${callerChannel.id}: ${val}`);
+                setAriCallType(val);
+                setCheckingAri(false);
+              })
+              .catch(err => {
+                console.warn("[ARI] Variable fetch failed:", err);
+                if (!isMounted) return;
+                setCheckingAri(false);
+              });
+          } else {
+            setCheckingAri(false);
+          }
         })
         .catch(err => {
           console.warn("ARI fetch failed:", err);
@@ -590,6 +671,7 @@ export default function Softphone({
           setAriChannelActive(true);
           setCheckingAri(false);
           setAriGoIpDetected(false);
+          setAriCallType(null);
         });
     };
 
@@ -665,7 +747,7 @@ export default function Softphone({
     );
   }, [ariGoIpDetected, callerData, incomingSession, dialInput]);
 
-  const isAudioOnlyCall = !callHasVideo || isGoIpCall;
+  const isAudioOnlyCall = ariCallType === "AUDIO" || (ariCallType !== "VIDEO" && (!callHasVideo || isGoIpCall));
 
   // Sync recording config to useSIP whenever settings change
   useEffect(() => {
@@ -762,10 +844,12 @@ export default function Softphone({
     });
 
     if (registered) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowStatusToast(true);
       const timer = setTimeout(() => setShowStatusToast(false), 5000);
       return () => clearTimeout(timer);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowStatusToast(true);
     }
   }, [registered, reconnecting, activeConfig?.extension, error, ariConnected]);
@@ -895,6 +979,7 @@ export default function Softphone({
   // Reset remote video loaded state when call state changes
   useEffect(() => {
     if (callState === "idle" || callState === "ringing") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRemoteVideoLoaded(false);
     }
   }, [callState]);
@@ -940,13 +1025,9 @@ export default function Softphone({
     : reconnecting
       ? "status-yellow"
       : "status-red";
-  const fabInBottomHalf = fabPanel.pos.y > window.innerHeight / 2;
-  const fabInRightHalf = fabPanel.pos.x > window.innerWidth / 2;
+  const fabInBottomHalf = dragPos.y > window.innerHeight / 2;
+  const fabInRightHalf = dragPos.x > window.innerWidth / 2;
   const navClass = `sp-fab-wrap ${fabInBottomHalf ? "nav-up" : "nav-down"} ${fabInRightHalf ? "nav-left" : "nav-right"}`;
-
-  const effectiveAnswerVideo = uiPrefs.answerwithVideoCall;
-  const showAudioBtn = !effectiveAnswerVideo && uiPrefs.ShowIncomingCallAudio;
-  const showVideoBtn = uiPrefs.ShowIncomingCallVideoBtn;
 
   console.log("🔍 Render check:", {
     enabledBubble: uiPrefs.enabledBubble,
@@ -1042,6 +1123,19 @@ export default function Softphone({
                     incomingSession?.remoteIdentity?.uri?.user ||
                     "Unknown"}
                 </p>
+                {ariCallType && (
+                  <div style={{ marginTop: 6, display: 'flex', justifyContent: 'center' }}>
+                    {ariCallType === "VIDEO" ? (
+                      <span className="sp-call-type-badge video-badge">
+                        <Video size={12} style={{ marginRight: 4 }} /> Video Call
+                      </span>
+                    ) : ariCallType === "AUDIO" ? (
+                      <span className="sp-call-type-badge audio-badge">
+                        <Phone size={12} style={{ marginRight: 4 }} /> Audio Call
+                      </span>
+                    ) : null}
+                  </div>
+                )}
                 {callerData && (
                   <div style={{ fontSize: "0.85rem", opacity: 0.8, marginTop: 4 }}>
                     {callerData.address && <div>Address: {callerData.address}</div>}
@@ -1057,7 +1151,7 @@ export default function Softphone({
                       <div style={{ width: 14, height: 14, border: '2px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spSpin 0.6s linear infinite' }} />
                       Verifying call line...
                     </div>
-                  ) : isGoIpCall ? (
+                  ) : (ariCallType === "AUDIO" || isGoIpCall) ? (
                     <button
                       className="sp-action-btn sp-action-answer"
                       onClick={() => safeAnswer(false)}
@@ -2002,61 +2096,91 @@ export default function Softphone({
             </>
           )}
 
-          {/* Incoming Call Overlay */}
+          {/* Draggable Incoming Call Panel */}
           {callState === "incoming" && callerData && ariChannelActive && (
-            <div className="sp-incoming-overlay">
-              <div className="sp-incoming-card">
-                <div className="sp-incoming-avatar">
-                  {callerData?.avatar ? (
-                    <img src={callerData.avatar} alt="Caller" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                  ) : (
-                    <PhoneIncoming size={26} />
-                  )}
-                </div>
-                <p className="sp-incoming-label">Incoming Call</p>
-                <p className="sp-incoming-caller">
-                  {callerData?.name || incomingSession?.remoteIdentity?.displayName ||
-                    incomingSession?.remoteIdentity?.uri?.user ||
-                    "Unknown"}
-                </p>
-                {callerData && (
-                  <div style={{ fontSize: "0.9rem", opacity: 0.85, marginTop: 8 }}>
-                    {callerData.address && <div>Address: {callerData.address}</div>}
+            <Draggable
+              nodeRef={incomingNodeRef}
+              handle=".sp-panel-header"
+              bounds="parent"
+              defaultPosition={computePanelPos(
+                "center",
+                320,
+                320,
+                panelOffset,
+              )}
+            >
+              <div ref={incomingNodeRef} className="sp-incoming-panel">
+                <div className="sp-panel-inner">
+                  <div className="sp-panel-header">
+                    <GripHorizontal size={14} />
+                    <span>Incoming Call</span>
                   </div>
-                )}
-                <br />
-                <div className="sp-incoming-actions">
-                  {checkingAri ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.9rem', padding: '10px 0', width: '100%' }}>
-                      <div style={{ width: 16, height: 16, border: '2px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spSpin 0.6s linear infinite' }} />
-                      Verifying line...
+                  <div className="sp-incoming-body">
+                    <div className="sp-incoming-avatar">
+                      {callerData?.avatar ? (
+                        <img src={callerData.avatar} alt="Caller" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                      ) : (
+                        <PhoneIncoming size={26} />
+                      )}
                     </div>
-                  ) : isGoIpCall ? (
-                    <button
-                      className="sp-action-btn sp-action-answer"
-                      onClick={() => safeAnswer(false)}
-                      title="Answer Call"
-                    >
-                      <Phone size={20} />
-                    </button>
-                  ) : (
-                    <button
-                      className="sp-action-btn sp-action-video"
-                      onClick={() => safeAnswer(true)}
-                      title="Answer with Video"
-                    >
-                      <Video size={20} />
-                    </button>
-                  )}
-                  <button
-                    className="sp-action-btn sp-action-reject"
-                    onClick={hangup}
-                  >
-                    <PhoneMissed size={20} />
-                  </button>
+                    <p className="sp-incoming-caller">
+                      {callerData?.name || incomingSession?.remoteIdentity?.displayName ||
+                        incomingSession?.remoteIdentity?.uri?.user ||
+                        "Unknown"}
+                    </p>
+                    {ariCallType && (
+                      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'center' }}>
+                        {ariCallType === "VIDEO" ? (
+                          <span className="sp-call-type-badge video-badge">
+                            <Video size={12} style={{ marginRight: 4 }} /> Video Call
+                          </span>
+                        ) : ariCallType === "AUDIO" ? (
+                          <span className="sp-call-type-badge audio-badge">
+                            <Phone size={12} style={{ marginRight: 4 }} /> Audio Call
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+                    {callerData && (
+                      <div style={{ fontSize: "0.9rem", opacity: 0.85, marginTop: 8 }}>
+                        {callerData.address && <div>Address: {callerData.address}</div>}
+                      </div>
+                    )}
+                    <br />
+                    <div className="sp-incoming-actions">
+                      {checkingAri ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.9rem', padding: '10px 0', width: '100%' }}>
+                          <div style={{ width: 16, height: 16, border: '2px solid #6366f1', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spSpin 0.6s linear infinite' }} />
+                          Verifying line...
+                        </div>
+                      ) : (ariCallType === "AUDIO" || isGoIpCall) ? (
+                        <button
+                          className="sp-action-btn sp-action-answer"
+                          onClick={() => safeAnswer(false)}
+                          title="Answer Call"
+                        >
+                          <Phone size={20} />
+                        </button>
+                      ) : (
+                        <button
+                          className="sp-action-btn sp-action-video"
+                          onClick={() => safeAnswer(true)}
+                          title="Answer with Video"
+                        >
+                          <Video size={20} />
+                        </button>
+                      )}
+                      <button
+                        className="sp-action-btn sp-action-reject"
+                        onClick={hangup}
+                      >
+                        <PhoneMissed size={20} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            </Draggable>
           )}
 
           {/* Draggable + Resizable Video Panel */}
@@ -3086,10 +3210,10 @@ export default function Softphone({
           {/* Floating FAB */}
           {uiPrefs.enabledBubble && (
             <div
-              ref={fabPanel.ref}
+              ref={dragRef}
               className={navClass}
               style={{
-                transform: `translate(${fabPanel.pos.x}px, ${fabPanel.pos.y}px)`,
+                transform: `translate(${dragPos.x}px, ${dragPos.y}px)`,
               }}
             >
               <div className={`sp-fab-menu ${navOpen ? "open" : ""}`}>
