@@ -493,11 +493,12 @@ export default function Softphone({
     setMediaError(getMediaSecurityError());
   }, []);
 
-  // Reset callHasVideo on idle
+  // Reset callHasVideo and clear dialInput on idle
   useEffect(() => {
     if (callState === "idle") {
       setCallHasVideo(true);
       setAriCallType(null);
+      setDialInput("");
     }
   }, [callState]);
 
@@ -840,7 +841,9 @@ export default function Softphone({
       reconnecting,
       extension: activeConfig?.extension,
       error,
-      ariConnected
+      ariConnected,
+      callState,
+      callerData
     });
 
     if (registered) {
@@ -852,7 +855,7 @@ export default function Softphone({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowStatusToast(true);
     }
-  }, [registered, reconnecting, activeConfig?.extension, error, ariConnected]);
+  }, [registered, reconnecting, activeConfig?.extension, error, ariConnected, callState, callerData]);
 
   const handleCreateDirectory = async () => {
     try {
