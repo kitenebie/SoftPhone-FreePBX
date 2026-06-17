@@ -322,9 +322,14 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
     const { server, wsServer, extension, password, displayName } = configRef.current;
     if (!server || !extension || !password || !wsServer) return;
 
+    console.log(`[KSIP Log] Connecting to PBX: wsServer=${wsServer}, extension=${extension}`);
     S.current.error(null);
     const uri = UserAgent.makeURI(`sip:${extension}@${server}`);
-    if (!uri) { S.current.error("Invalid SIP URI"); return; }
+    if (!uri) {
+      console.error(`[KSIP Log] Invalid SIP URI for extension ${extension}@${server}`);
+      S.current.error("Invalid SIP URI");
+      return;
+    }
 
     const ua = new UserAgent({
       uri,
@@ -362,6 +367,7 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
           wireSession(invitation);
         },
         onDisconnect() {
+          console.warn('[KSIP Log] PBX connection disconnected.');
           S.current.registered(false);
           S.current.callState("idle");
           sessionRef.current = null;
@@ -380,22 +386,23 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
     ua.start()
       .then(() => {
         if (unmountedRef.current) return;
+        console.log('[KSIP Log] PBX UserAgent started successfully. Registering...');
         S.current.reconnecting(false);
         const reg = new Registerer(ua, {
           expires: REGISTRATION_EXPIRES, // Re-register every 10 minutes
         });
         registererRef.current = reg;
         reg.stateChange.addListener((s) => {
-          console.log('📡 Registration state:', s);
+          console.log('[KSIP Log] Registration state changed:', s);
           S.current.registered(s === "Registered");
           
           // If unregistered unexpectedly, try to re-register
           if (s === "Unregistered" && !unmountedRef.current) {
-            console.log('⚠️ Unexpected unregistration, attempting to re-register...');
+            console.warn('[KSIP Log] Unexpected unregistration, attempting to re-register...');
             setTimeout(() => {
               if (registererRef.current && !unmountedRef.current) {
                 registererRef.current.register().catch((err) => {
-                  console.error('❌ Re-registration failed:', err);
+                  console.error('[KSIP Log] Re-registration failed:', err.message || err);
                   S.current.error(`Re-registration failed: ${err.message}`);
                 });
               }
@@ -405,6 +412,7 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
         return reg.register();
       })
       .catch((e) => {
+        console.error('[KSIP Log] PBX connection error or issue:', e.message || e);
         if (!unmountedRef.current) {
           S.current.error(`Connection failed: ${e.message}`);
           S.current.reconnecting(true);
@@ -421,6 +429,7 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
     unmountedRef.current = false;
     startUA();
     return () => {
+      console.log('[KSIP Log] Cleaning up/Disconnecting PBX connection...');
       unmountedRef.current = true;
       clearTimeout(reconnectTimerRef.current);
       registererRef.current?.unregister().catch(() => {});
@@ -457,6 +466,7 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
     wireSession(inviter);
 
     inviter.invite().catch((e) => {
+      console.error('[KSIP Log] Call failed:', e.message || e);
       playEnd();
       S.current.error(`Call failed: ${e.message}`);
       S.current.callState("idle");
@@ -480,6 +490,7 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
         sessionDescriptionHandlerModifiers: [sdpModifier]
       })
       .catch((e) => {
+        console.error('[KSIP Log] Answer failed:', e.message || e);
         S.current.error(`Answer failed: ${e.message}`);
         S.current.callState("idle");
       });
