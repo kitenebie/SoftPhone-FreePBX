@@ -1659,46 +1659,64 @@ body {
   position: absolute !important;
   pointer-events: auto;
   z-index: 9200;
-  width: 360px;
-  background: rgba(12, 12, 24, 0.95);
+  width: 540px;
+  background: rgba(12, 12, 24, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: 16px;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
   animation: slideUp 0.3s ease;
 }
 
+.sp-caller-info-close-btn {
+  color: rgba(255, 255, 255, 0.5) !important;
+  padding: 4px !important;
+  border-radius: 6px !important;
+  margin-left: auto;
+}
+
+.sp-caller-info-close-btn:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
 .sp-caller-info-body {
-  padding: 20px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   text-align: left;
 }
 
 .sp-caller-info-title {
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: #818cf8;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .sp-caller-info-subtitle {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #64748b;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
+}
+
+.sp-caller-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
 }
 
 .sp-form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   text-align: left;
 }
 
 .sp-form-label {
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: #94a3b8;
 }
@@ -1709,14 +1727,15 @@ body {
 }
 
 .sp-form-input {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   color: #e2e8f0;
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
 }
 
 .sp-form-input:focus {
@@ -1733,15 +1752,15 @@ body {
 
 .sp-gender-options {
   display: flex;
-  gap: 16px;
-  padding: 4px 0;
+  gap: 20px;
+  padding: 8px 0;
 }
 
 .sp-gender-option {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.88rem;
+  gap: 8px;
+  font-size: 0.92rem;
   color: #e2e8f0;
   cursor: pointer;
 }
@@ -1749,13 +1768,13 @@ body {
 .sp-gender-option input[type="radio"] {
   accent-color: #818cf8;
   cursor: pointer;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   margin: 0;
 }
 
 .sp-form-error {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: #f87171;
   margin-top: 2px;
 }
@@ -1765,16 +1784,17 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px;
+  padding: 14px;
   background: #4f46e5;
   color: #fff;
   border: none;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
   margin-top: 8px;
+  width: 100%;
 }
 
 .sp-caller-info-submit-btn:hover:not(:disabled) {

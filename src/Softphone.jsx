@@ -336,6 +336,7 @@ export default function Softphone({
 
   // Caller Information Modal State
   const [showCallerInfoModal, setShowCallerInfoModal] = useState(false);
+  const [pendingCallerInfoModal, setPendingCallerInfoModal] = useState(false);
   const [callerInfoMobileNumber, setCallerInfoMobileNumber] = useState("");
   const [callerInfoForm, setCallerInfoForm] = useState({
     completeName: "",
@@ -477,15 +478,15 @@ export default function Softphone({
   const incomingDefaultPos = useMemo(() => {
     const center = computePanelPos("center", 320, 320, panelOffset);
     if (showCallerInfoModal) {
-      return { x: Math.max(0, center.x - 190), y: center.y };
+      return { x: Math.max(0, center.x - 278), y: center.y };
     }
     return center;
   }, [showCallerInfoModal, panelOffset]);
 
   const callerInfoDefaultPos = useMemo(() => {
-    const center = computePanelPos("center", 360, 450, panelOffset);
+    const center = computePanelPos("center", 540, 480, panelOffset);
     if (callState === "incoming" && callerData && ariChannelActive) {
-      return { x: Math.min(window.innerWidth - 370, center.x + 190), y: center.y - 40 };
+      return { x: Math.min(window.innerWidth - 550, center.x + 168), y: center.y - 40 };
     }
     return center;
   }, [callState, callerData, ariChannelActive, panelOffset]);
@@ -515,9 +516,14 @@ export default function Softphone({
       }
       setMediaError("");
       setCallHasVideo(video);
+
+      if (pendingCallerInfoModal) {
+        setShowCallerInfoModal(true);
+      }
+
       return answer(video);
     },
-    [answer],
+    [answer, pendingCallerInfoModal],
   );
 
   useEffect(() => {
@@ -859,7 +865,9 @@ export default function Softphone({
             const hasAddress = data && typeof data.address === "string" && data.address.trim().length > 0;
             if (!hasName || !hasAddress) {
               setCallerInfoMobileNumber(ext);
-              setShowCallerInfoModal(true);
+              setPendingCallerInfoModal(true);
+            } else {
+              setPendingCallerInfoModal(false);
             }
           }
         })
@@ -869,12 +877,13 @@ export default function Softphone({
 
           if (ShowUnknwonRegisterModalForm && callState === "incoming" && incomingSession) {
             setCallerInfoMobileNumber(ext);
-            setShowCallerInfoModal(true);
+            setPendingCallerInfoModal(true);
           }
         });
     } else if (callState === "idle") {
       if (callerData !== null) setCallerData(null);
       if (fetchingCaller) setFetchingCaller(false);
+      setPendingCallerInfoModal(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callState, incomingSession, dialInput]);
@@ -1725,8 +1734,17 @@ export default function Softphone({
                     <div ref={callerInfoNodeRef} className="sp-caller-info-panel">
                       <div className="sp-panel-inner">
                         <div className="sp-panel-header">
-                          <GripHorizontal size={14} />
+                          <GripHorizontal size={14} style={{ cursor: 'move' }} />
                           <span>Caller Registration</span>
+                          <button
+                            type="button"
+                            className="sp-icon-btn sp-caller-info-close-btn"
+                            onClick={() => setShowCallerInfoModal(false)}
+                            title="Close"
+                            style={{ marginLeft: "auto" }}
+                          >
+                            <X size={14} />
+                          </button>
                         </div>
                         <form onSubmit={handleCallerInfoSubmit} className="sp-caller-info-body">
                           <div className="sp-caller-info-title">New Caller Info</div>
@@ -1734,73 +1752,75 @@ export default function Softphone({
                             No matching records found. Please register the caller's details.
                           </div>
 
-                          <div className="sp-form-group">
-                            <label className="sp-form-label required">Complete Name</label>
-                            <input
-                              type="text"
-                              className="sp-form-input"
-                              placeholder="John Doe"
-                              value={callerInfoForm.completeName}
-                              onChange={(e) => setCallerInfoForm(f => ({ ...f, completeName: e.target.value }))}
-                            />
-                            {callerInfoErrors.completeName && (
-                              <span className="sp-form-error">{callerInfoErrors.completeName}</span>
-                            )}
-                          </div>
+                          <div className="sp-caller-info-grid">
+                            <div className="sp-form-group">
+                              <label className="sp-form-label required">Complete Name</label>
+                              <input
+                                type="text"
+                                className="sp-form-input"
+                                placeholder="John Doe"
+                                value={callerInfoForm.completeName}
+                                onChange={(e) => setCallerInfoForm(f => ({ ...f, completeName: e.target.value }))}
+                              />
+                              {callerInfoErrors.completeName && (
+                                <span className="sp-form-error">{callerInfoErrors.completeName}</span>
+                              )}
+                            </div>
 
-                          <div className="sp-form-group">
-                            <label className="sp-form-label required">Complete Address</label>
-                            <input
-                              type="text"
-                              className="sp-form-input"
-                              placeholder="123 Main St, City"
-                              value={callerInfoForm.completeAddress}
-                              onChange={(e) => setCallerInfoForm(f => ({ ...f, completeAddress: e.target.value }))}
-                            />
-                            {callerInfoErrors.completeAddress && (
-                              <span className="sp-form-error">{callerInfoErrors.completeAddress}</span>
-                            )}
-                          </div>
+                            <div className="sp-form-group">
+                              <label className="sp-form-label">Mobile Number</label>
+                              <input
+                                type="text"
+                                className="sp-form-input"
+                                value={callerInfoMobileNumber}
+                                disabled
+                                readOnly
+                              />
+                            </div>
 
-                          <div className="sp-form-group">
-                            <label className="sp-form-label">Mobile Number</label>
-                            <input
-                              type="text"
-                              className="sp-form-input"
-                              value={callerInfoMobileNumber}
-                              disabled
-                              readOnly
-                            />
-                          </div>
+                            <div className="sp-form-group" style={{ gridColumn: 'span 2' }}>
+                              <label className="sp-form-label required">Complete Address</label>
+                              <input
+                                type="text"
+                                className="sp-form-input"
+                                placeholder="123 Main St, City"
+                                value={callerInfoForm.completeAddress}
+                                onChange={(e) => setCallerInfoForm(f => ({ ...f, completeAddress: e.target.value }))}
+                              />
+                              {callerInfoErrors.completeAddress && (
+                                <span className="sp-form-error">{callerInfoErrors.completeAddress}</span>
+                              )}
+                            </div>
 
-                          <div className="sp-form-group">
-                            <label className="sp-form-label">Age</label>
-                            <input
-                              type="number"
-                              className="sp-form-input"
-                              placeholder="Enter age"
-                              min="0"
-                              max="120"
-                              value={callerInfoForm.age}
-                              onChange={(e) => setCallerInfoForm(f => ({ ...f, age: e.target.value }))}
-                            />
-                          </div>
+                            <div className="sp-form-group">
+                              <label className="sp-form-label">Age</label>
+                              <input
+                                type="number"
+                                className="sp-form-input"
+                                placeholder="Enter age"
+                                min="0"
+                                max="120"
+                                value={callerInfoForm.age}
+                                onChange={(e) => setCallerInfoForm(f => ({ ...f, age: e.target.value }))}
+                              />
+                            </div>
 
-                          <div className="sp-form-group">
-                            <label className="sp-form-label">Gender</label>
-                            <div className="sp-gender-options">
-                              {["Male", "Female", "Other"].map((g) => (
-                                <label key={g} className="sp-gender-option">
-                                  <input
-                                    type="radio"
-                                    name="gender"
-                                    value={g}
-                                    checked={callerInfoForm.gender === g}
-                                    onChange={() => setCallerInfoForm(f => ({ ...f, gender: g }))}
-                                  />
-                                  <span>{g}</span>
-                                </label>
-                              ))}
+                            <div className="sp-form-group">
+                              <label className="sp-form-label">Gender</label>
+                              <div className="sp-gender-options">
+                                {["Male", "Female", "Other"].map((g) => (
+                                  <label key={g} className="sp-gender-option">
+                                    <input
+                                      type="radio"
+                                      name="gender"
+                                      value={g}
+                                      checked={callerInfoForm.gender === g}
+                                      onChange={() => setCallerInfoForm(f => ({ ...f, gender: g }))}
+                                    />
+                                    <span>{g}</span>
+                                  </label>
+                                ))}
+                              </div>
                             </div>
                           </div>
 
@@ -3494,8 +3514,17 @@ export default function Softphone({
               <div ref={callerInfoNodeRef} className="sp-caller-info-panel">
                 <div className="sp-panel-inner">
                   <div className="sp-panel-header">
-                    <GripHorizontal size={14} />
+                    <GripHorizontal size={14} style={{ cursor: 'move' }} />
                     <span>Caller Registration</span>
+                    <button
+                      type="button"
+                      className="sp-icon-btn sp-caller-info-close-btn"
+                      onClick={() => setShowCallerInfoModal(false)}
+                      title="Close"
+                      style={{ marginLeft: "auto" }}
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
                   <form onSubmit={handleCallerInfoSubmit} className="sp-caller-info-body">
                     <div className="sp-caller-info-title">New Caller Info</div>
@@ -3503,73 +3532,75 @@ export default function Softphone({
                       No matching records found. Please register the caller's details.
                     </div>
 
-                    <div className="sp-form-group">
-                      <label className="sp-form-label required">Complete Name</label>
-                      <input
-                        type="text"
-                        className="sp-form-input"
-                        placeholder="John Doe"
-                        value={callerInfoForm.completeName}
-                        onChange={(e) => setCallerInfoForm(f => ({ ...f, completeName: e.target.value }))}
-                      />
-                      {callerInfoErrors.completeName && (
-                        <span className="sp-form-error">{callerInfoErrors.completeName}</span>
-                      )}
-                    </div>
+                    <div className="sp-caller-info-grid">
+                      <div className="sp-form-group">
+                        <label className="sp-form-label required">Complete Name</label>
+                        <input
+                          type="text"
+                          className="sp-form-input"
+                          placeholder="John Doe"
+                          value={callerInfoForm.completeName}
+                          onChange={(e) => setCallerInfoForm(f => ({ ...f, completeName: e.target.value }))}
+                        />
+                        {callerInfoErrors.completeName && (
+                          <span className="sp-form-error">{callerInfoErrors.completeName}</span>
+                        )}
+                      </div>
 
-                    <div className="sp-form-group">
-                      <label className="sp-form-label required">Complete Address</label>
-                      <input
-                        type="text"
-                        className="sp-form-input"
-                        placeholder="123 Main St, City"
-                        value={callerInfoForm.completeAddress}
-                        onChange={(e) => setCallerInfoForm(f => ({ ...f, completeAddress: e.target.value }))}
-                      />
-                      {callerInfoErrors.completeAddress && (
-                        <span className="sp-form-error">{callerInfoErrors.completeAddress}</span>
-                      )}
-                    </div>
+                      <div className="sp-form-group">
+                        <label className="sp-form-label">Mobile Number</label>
+                        <input
+                          type="text"
+                          className="sp-form-input"
+                          value={callerInfoMobileNumber}
+                          disabled
+                          readOnly
+                        />
+                      </div>
 
-                    <div className="sp-form-group">
-                      <label className="sp-form-label">Mobile Number</label>
-                      <input
-                        type="text"
-                        className="sp-form-input"
-                        value={callerInfoMobileNumber}
-                        disabled
-                        readOnly
-                      />
-                    </div>
+                      <div className="sp-form-group" style={{ gridColumn: 'span 2' }}>
+                        <label className="sp-form-label required">Complete Address</label>
+                        <input
+                          type="text"
+                          className="sp-form-input"
+                          placeholder="123 Main St, City"
+                          value={callerInfoForm.completeAddress}
+                          onChange={(e) => setCallerInfoForm(f => ({ ...f, completeAddress: e.target.value }))}
+                        />
+                        {callerInfoErrors.completeAddress && (
+                          <span className="sp-form-error">{callerInfoErrors.completeAddress}</span>
+                        )}
+                      </div>
 
-                    <div className="sp-form-group">
-                      <label className="sp-form-label">Age</label>
-                      <input
-                        type="number"
-                        className="sp-form-input"
-                        placeholder="Enter age"
-                        min="0"
-                        max="120"
-                        value={callerInfoForm.age}
-                        onChange={(e) => setCallerInfoForm(f => ({ ...f, age: e.target.value }))}
-                      />
-                    </div>
+                      <div className="sp-form-group">
+                        <label className="sp-form-label">Age</label>
+                        <input
+                          type="number"
+                          className="sp-form-input"
+                          placeholder="Enter age"
+                          min="0"
+                          max="120"
+                          value={callerInfoForm.age}
+                          onChange={(e) => setCallerInfoForm(f => ({ ...f, age: e.target.value }))}
+                        />
+                      </div>
 
-                    <div className="sp-form-group">
-                      <label className="sp-form-label">Gender</label>
-                      <div className="sp-gender-options">
-                        {["Male", "Female", "Other"].map((g) => (
-                          <label key={g} className="sp-gender-option">
-                            <input
-                              type="radio"
-                              name="gender"
-                              value={g}
-                              checked={callerInfoForm.gender === g}
-                              onChange={() => setCallerInfoForm(f => ({ ...f, gender: g }))}
-                            />
-                            <span>{g}</span>
-                          </label>
-                        ))}
+                      <div className="sp-form-group">
+                        <label className="sp-form-label">Gender</label>
+                        <div className="sp-gender-options">
+                          {["Male", "Female", "Other"].map((g) => (
+                            <label key={g} className="sp-gender-option">
+                              <input
+                                type="radio"
+                                name="gender"
+                                value={g}
+                                checked={callerInfoForm.gender === g}
+                                onChange={() => setCallerInfoForm(f => ({ ...f, gender: g }))}
+                              />
+                              <span>{g}</span>
+                            </label>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
