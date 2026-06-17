@@ -220,6 +220,8 @@ export default function Softphone({
     audio: { visible: true, codecs: ["PCMU", "PCMA", "G722", "G729", "opus"] },
     video: { visible: true, codecs: ["VP8", "VP9", "H264", "H265", "AV1"] },
   },
+  // Caller registration modal prop
+  ShowUnknwonRegisterModalForm = true,
 }) {
   const saved = loadConfig();
 
@@ -332,6 +334,19 @@ export default function Softphone({
   const [ariConnected, setAriConnected] = useState(true);
   const [ariCallType, setAriCallType] = useState(null); // 'VIDEO', 'AUDIO', or null
 
+  // Caller Information Modal State
+  const [showCallerInfoModal, setShowCallerInfoModal] = useState(false);
+  const [callerInfoMobileNumber, setCallerInfoMobileNumber] = useState("");
+  const [callerInfoForm, setCallerInfoForm] = useState({
+    completeName: "",
+    completeAddress: "",
+    age: "",
+    gender: "",
+  });
+  const [callerInfoErrors, setCallerInfoErrors] = useState({});
+  const [submittingCallerInfo, setSubmittingCallerInfo] = useState(false);
+  const callerInfoNodeRef = useRef(null);
+
   // Fetch current user ID from /me API
   useEffect(() => {
     const headers = { "Content-Type": "application/json" };
@@ -422,18 +437,18 @@ export default function Softphone({
 
   const sipConfig = activeConfig
     ? {
-        ...activeConfig,
-        audioCodecs: activeConfig.audioCodecs || form.audioCodecs,
-        videoCodecs: activeConfig.videoCodecs || form.videoCodecs,
-      }
+      ...activeConfig,
+      audioCodecs: activeConfig.audioCodecs || form.audioCodecs,
+      videoCodecs: activeConfig.videoCodecs || form.videoCodecs,
+    }
     : {
-        server: "",
-        wsServer: "",
-        extension: "",
-        password: "",
-        audioCodecs: form.audioCodecs,
-        videoCodecs: form.videoCodecs,
-      };
+      server: "",
+      wsServer: "",
+      extension: "",
+      password: "",
+      audioCodecs: form.audioCodecs,
+      videoCodecs: form.videoCodecs,
+    };
   const {
     registered,
     callState,
@@ -458,6 +473,22 @@ export default function Softphone({
   const dialerNodeRef = useRef(null);
   const incomingNodeRef = useRef(null);
   const wsPreview = buildWs(SIP_WS_PROTOCOL, form.server, SIP_WS_PORT) || `${SIP_WS_PROTOCOL}://...:${SIP_WS_PORT}${SIP_WS_PATH}`;
+
+  const incomingDefaultPos = useMemo(() => {
+    const center = computePanelPos("center", 320, 320, panelOffset);
+    if (showCallerInfoModal) {
+      return { x: Math.max(0, center.x - 190), y: center.y };
+    }
+    return center;
+  }, [showCallerInfoModal, panelOffset]);
+
+  const callerInfoDefaultPos = useMemo(() => {
+    const center = computePanelPos("center", 360, 450, panelOffset);
+    if (callState === "incoming" && callerData && ariChannelActive) {
+      return { x: Math.min(window.innerWidth - 370, center.x + 190), y: center.y - 40 };
+    }
+    return center;
+  }, [callState, callerData, ariChannelActive, panelOffset]);
 
   const safeCall = useCallback(
     (target, video = true) => {
@@ -607,10 +638,10 @@ export default function Softphone({
               if (ch.id === myCh.id) return false;
               const chBaseId = ch.id ? ch.id.split('.')[0] : "";
               const sameBase = myBaseId && chBaseId && myBaseId === chBaseId;
-              
+
               const isPjsip = ch.name && ch.name.startsWith("PJSIP/");
               const isOperator = ch.name && ch.name.includes(sipConfig.extension);
-              
+
               if (isPjsip && !isOperator && (sameBase || (myCallerNum && ch.name.includes(myCallerNum)))) {
                 return true;
               }
@@ -630,11 +661,11 @@ export default function Softphone({
                 if (ch.id === myCh.id) return false;
                 const isOperator = ch.name && ch.name.includes(sipConfig.extension);
                 if (isOperator) return false;
-                
+
                 const myBaseId = myCh.id ? myCh.id.split('.')[0] : "";
                 const chBaseId = ch.id ? ch.id.split('.')[0] : "";
                 const sameBase = myBaseId && chBaseId && myBaseId === chBaseId;
-                
+
                 return sameBase || (myCallerNum && ch.name.includes(myCallerNum)) || (ch.caller?.number === myCallerNum);
               });
               if (candidate) {
@@ -821,10 +852,25 @@ export default function Softphone({
         .then(data => {
           setCallerData({ ...data, _fetchedExt: ext });
           setFetchingCaller(false);
+
+          // Trigger condition for Caller Information Modal
+          if (ShowUnknwonRegisterModalForm && callState === "incoming" && incomingSession) {
+            const hasName = data && typeof data.name === "string" && data.name.trim().length > 0;
+            const hasAddress = data && typeof data.address === "string" && data.address.trim().length > 0;
+            if (!hasName || !hasAddress) {
+              setCallerInfoMobileNumber(ext);
+              setShowCallerInfoModal(true);
+            }
+          }
         })
         .catch(err => {
           console.error("Failed to fetch caller data:", err);
           setFetchingCaller(false);
+
+          if (ShowUnknwonRegisterModalForm && callState === "incoming" && incomingSession) {
+            setCallerInfoMobileNumber(ext);
+            setShowCallerInfoModal(true);
+          }
         });
     } else if (callState === "idle") {
       if (callerData !== null) setCallerData(null);
@@ -986,6 +1032,62 @@ export default function Softphone({
       setRemoteVideoLoaded(false);
     }
   }, [callState]);
+
+  const handleCallerInfoSubmit = (e) => {
+    e.preventDefault();
+    const errors = {};
+    if (!callerInfoForm.completeName.trim()) {
+      errors.completeName = "Complete Name is required";
+    }
+    if (!callerInfoForm.completeAddress.trim()) {
+      errors.completeAddress = "Complete Address is required";
+    }
+    if (Object.keys(errors).length > 0) {
+      setCallerInfoErrors(errors);
+      return;
+    }
+
+    setCallerInfoErrors({});
+    setSubmittingCallerInfo(true);
+
+    const payload = {
+      completeName: callerInfoForm.completeName.trim(),
+      completeAddress: callerInfoForm.completeAddress.trim(),
+      mobileNumber: callerInfoMobileNumber,
+      age: callerInfoForm.age ? Number(callerInfoForm.age) : null,
+      gender: callerInfoForm.gender || null,
+    };
+
+    const headers = { "Content-Type": "application/json" };
+    if (configApiToken) headers["Authorization"] = `Bearer ${configApiToken}`;
+
+    fetch("/ksip/caller/register", {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify(payload),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        return res.json();
+      })
+      .then(() => {
+        setSubmittingCallerInfo(false);
+        setShowCallerInfoModal(false);
+        setCallerInfoForm({
+          completeName: "",
+          completeAddress: "",
+          age: "",
+          gender: "",
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to submit caller registration:", err);
+        setSubmittingCallerInfo(false);
+        setCallerInfoErrors({ submit: "Failed to submit caller info. Please try again." });
+      });
+  };
+
   const handleVideoMute = () => {
     const next = !videoMuted;
     setVideoMuted(next);
@@ -1612,6 +1714,121 @@ export default function Softphone({
                   <Phone size={14} />{" "}
                   {activeConfig ? "Save & Reconnect" : "Save & Connect"}
                 </button>
+                {/* Caller Information Modal (Fullscreen Overlay) */}
+                {showCallerInfoModal && (
+                  <Draggable
+                    nodeRef={callerInfoNodeRef}
+                    handle=".sp-panel-header"
+                    bounds="parent"
+                    defaultPosition={callerInfoDefaultPos}
+                  >
+                    <div ref={callerInfoNodeRef} className="sp-caller-info-panel">
+                      <div className="sp-panel-inner">
+                        <div className="sp-panel-header">
+                          <GripHorizontal size={14} />
+                          <span>Caller Registration</span>
+                        </div>
+                        <form onSubmit={handleCallerInfoSubmit} className="sp-caller-info-body">
+                          <div className="sp-caller-info-title">New Caller Info</div>
+                          <div className="sp-caller-info-subtitle">
+                            No matching records found. Please register the caller's details.
+                          </div>
+
+                          <div className="sp-form-group">
+                            <label className="sp-form-label required">Complete Name</label>
+                            <input
+                              type="text"
+                              className="sp-form-input"
+                              placeholder="John Doe"
+                              value={callerInfoForm.completeName}
+                              onChange={(e) => setCallerInfoForm(f => ({ ...f, completeName: e.target.value }))}
+                            />
+                            {callerInfoErrors.completeName && (
+                              <span className="sp-form-error">{callerInfoErrors.completeName}</span>
+                            )}
+                          </div>
+
+                          <div className="sp-form-group">
+                            <label className="sp-form-label required">Complete Address</label>
+                            <input
+                              type="text"
+                              className="sp-form-input"
+                              placeholder="123 Main St, City"
+                              value={callerInfoForm.completeAddress}
+                              onChange={(e) => setCallerInfoForm(f => ({ ...f, completeAddress: e.target.value }))}
+                            />
+                            {callerInfoErrors.completeAddress && (
+                              <span className="sp-form-error">{callerInfoErrors.completeAddress}</span>
+                            )}
+                          </div>
+
+                          <div className="sp-form-group">
+                            <label className="sp-form-label">Mobile Number</label>
+                            <input
+                              type="text"
+                              className="sp-form-input"
+                              value={callerInfoMobileNumber}
+                              disabled
+                              readOnly
+                            />
+                          </div>
+
+                          <div className="sp-form-group">
+                            <label className="sp-form-label">Age</label>
+                            <input
+                              type="number"
+                              className="sp-form-input"
+                              placeholder="Enter age"
+                              min="0"
+                              max="120"
+                              value={callerInfoForm.age}
+                              onChange={(e) => setCallerInfoForm(f => ({ ...f, age: e.target.value }))}
+                            />
+                          </div>
+
+                          <div className="sp-form-group">
+                            <label className="sp-form-label">Gender</label>
+                            <div className="sp-gender-options">
+                              {["Male", "Female", "Other"].map((g) => (
+                                <label key={g} className="sp-gender-option">
+                                  <input
+                                    type="radio"
+                                    name="gender"
+                                    value={g}
+                                    checked={callerInfoForm.gender === g}
+                                    onChange={() => setCallerInfoForm(f => ({ ...f, gender: g }))}
+                                  />
+                                  <span>{g}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          {callerInfoErrors.submit && (
+                            <span className="sp-form-error" style={{ textAlign: "center" }}>
+                              {callerInfoErrors.submit}
+                            </span>
+                          )}
+
+                          <button
+                            type="submit"
+                            className="sp-caller-info-submit-btn"
+                            disabled={submittingCallerInfo}
+                          >
+                            {submittingCallerInfo ? (
+                              <>
+                                <div style={{ width: 14, height: 14, border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spSpin 0.6s linear infinite' }} />
+                                Submitting...
+                              </>
+                            ) : (
+                              "Register Caller"
+                            )}
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </Draggable>
+                )}
               </form>
             </div>
           </div>
@@ -2105,12 +2322,7 @@ export default function Softphone({
               nodeRef={incomingNodeRef}
               handle=".sp-panel-header"
               bounds="parent"
-              defaultPosition={computePanelPos(
-                "center",
-                320,
-                320,
-                panelOffset,
-              )}
+              defaultPosition={incomingDefaultPos}
             >
               <div ref={incomingNodeRef} className="sp-incoming-panel">
                 <div className="sp-panel-inner">
@@ -3269,6 +3481,122 @@ export default function Softphone({
                 <span className={`sp-fab-dot ${statusColor}`} />
               </button>
             </div>
+          )}
+
+          {/* Caller Information Modal */}
+          {showCallerInfoModal && (
+            <Draggable
+              nodeRef={callerInfoNodeRef}
+              handle=".sp-panel-header"
+              bounds="parent"
+              defaultPosition={callerInfoDefaultPos}
+            >
+              <div ref={callerInfoNodeRef} className="sp-caller-info-panel">
+                <div className="sp-panel-inner">
+                  <div className="sp-panel-header">
+                    <GripHorizontal size={14} />
+                    <span>Caller Registration</span>
+                  </div>
+                  <form onSubmit={handleCallerInfoSubmit} className="sp-caller-info-body">
+                    <div className="sp-caller-info-title">New Caller Info</div>
+                    <div className="sp-caller-info-subtitle">
+                      No matching records found. Please register the caller's details.
+                    </div>
+
+                    <div className="sp-form-group">
+                      <label className="sp-form-label required">Complete Name</label>
+                      <input
+                        type="text"
+                        className="sp-form-input"
+                        placeholder="John Doe"
+                        value={callerInfoForm.completeName}
+                        onChange={(e) => setCallerInfoForm(f => ({ ...f, completeName: e.target.value }))}
+                      />
+                      {callerInfoErrors.completeName && (
+                        <span className="sp-form-error">{callerInfoErrors.completeName}</span>
+                      )}
+                    </div>
+
+                    <div className="sp-form-group">
+                      <label className="sp-form-label required">Complete Address</label>
+                      <input
+                        type="text"
+                        className="sp-form-input"
+                        placeholder="123 Main St, City"
+                        value={callerInfoForm.completeAddress}
+                        onChange={(e) => setCallerInfoForm(f => ({ ...f, completeAddress: e.target.value }))}
+                      />
+                      {callerInfoErrors.completeAddress && (
+                        <span className="sp-form-error">{callerInfoErrors.completeAddress}</span>
+                      )}
+                    </div>
+
+                    <div className="sp-form-group">
+                      <label className="sp-form-label">Mobile Number</label>
+                      <input
+                        type="text"
+                        className="sp-form-input"
+                        value={callerInfoMobileNumber}
+                        disabled
+                        readOnly
+                      />
+                    </div>
+
+                    <div className="sp-form-group">
+                      <label className="sp-form-label">Age</label>
+                      <input
+                        type="number"
+                        className="sp-form-input"
+                        placeholder="Enter age"
+                        min="0"
+                        max="120"
+                        value={callerInfoForm.age}
+                        onChange={(e) => setCallerInfoForm(f => ({ ...f, age: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="sp-form-group">
+                      <label className="sp-form-label">Gender</label>
+                      <div className="sp-gender-options">
+                        {["Male", "Female", "Other"].map((g) => (
+                          <label key={g} className="sp-gender-option">
+                            <input
+                              type="radio"
+                              name="gender"
+                              value={g}
+                              checked={callerInfoForm.gender === g}
+                              onChange={() => setCallerInfoForm(f => ({ ...f, gender: g }))}
+                            />
+                            <span>{g}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {callerInfoErrors.submit && (
+                      <span className="sp-form-error" style={{ textAlign: "center" }}>
+                        {callerInfoErrors.submit}
+                      </span>
+                    )}
+
+                    <button
+                      type="submit"
+                      className="sp-caller-info-submit-btn"
+                      disabled={submittingCallerInfo}
+                    >
+                      {submittingCallerInfo ? (
+                        <>
+                          <div style={{ width: 14, height: 14, border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spSpin 0.6s linear infinite' }} />
+                          Submitting...
+                        </>
+                      ) : (
+                        "Register Caller"
+                      )}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </Draggable>
           )}
         </div>
       )}

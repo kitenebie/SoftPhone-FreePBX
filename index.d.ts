@@ -23,6 +23,8 @@ declare module 'juv-ksip-softphone' {
     settingConfigTogglesActiveState?: any;
     settingConfigCodecs?: any;
     enableFloatingStatus?: boolean;
+    /** Enable or disable the Caller Registration modal for unknown incoming callers. Default: true */
+    ShowUnknwonRegisterModalForm?: boolean;
   }
 
   export const Softphone: React.FC<SoftphoneProps>;

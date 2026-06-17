@@ -1653,3 +1653,139 @@ body {
     transform: scale(1.02);
   }
 }
+
+/* ── Caller Information Modal ────────────────────────────────── */
+.sp-caller-info-panel {
+  position: absolute !important;
+  pointer-events: auto;
+  z-index: 9200;
+  width: 360px;
+  background: rgba(12, 12, 24, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 16px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s ease;
+}
+
+.sp-caller-info-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.sp-caller-info-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #818cf8;
+  margin-bottom: 4px;
+}
+
+.sp-caller-info-subtitle {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.sp-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.sp-form-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.sp-form-label.required::after {
+  content: ' *';
+  color: #f87171;
+}
+
+.sp-form-input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #e2e8f0;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.sp-form-input:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.25);
+}
+
+.sp-form-input:disabled {
+  background: rgba(255, 255, 255, 0.02);
+  color: #64748b;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+.sp-gender-options {
+  display: flex;
+  gap: 16px;
+  padding: 4px 0;
+}
+
+.sp-gender-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.sp-gender-option input[type="radio"] {
+  accent-color: #818cf8;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.sp-form-error {
+  font-size: 0.75rem;
+  color: #f87171;
+  margin-top: 2px;
+}
+
+.sp-caller-info-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  margin-top: 8px;
+}
+
+.sp-caller-info-submit-btn:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.sp-caller-info-submit-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.sp-caller-info-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
