@@ -483,13 +483,6 @@ export default function Softphone({
     return center;
   }, [showCallerInfoModal, panelOffset]);
 
-  const callerInfoDefaultPos = useMemo(() => {
-    const center = computePanelPos("center", 540, 480, panelOffset);
-    if (callState === "incoming" && callerData && ariChannelActive) {
-      return { x: Math.min(window.innerWidth - 550, center.x + 168), y: center.y - 40 };
-    }
-    return center;
-  }, [callState, callerData, ariChannelActive, panelOffset]);
 
   const safeCall = useCallback(
     (target, video = true) => {
@@ -786,6 +779,25 @@ export default function Softphone({
   }, [ariGoIpDetected, callerData, incomingSession, dialInput]);
 
   const isAudioOnlyCall = ariCallType === "AUDIO" || (ariCallType !== "VIDEO" && (!callHasVideo || isGoIpCall));
+
+  const videoDefaultPos = useMemo(() => {
+    const w = isAudioOnlyCall ? 320 : 360;
+    const center = computePanelPos("center", w, 460, panelOffset);
+    if (showCallerInfoModal) {
+      return { x: Math.max(0, center.x - 278), y: center.y };
+    }
+    return computePanelPos(panelPosition, w, 460, panelOffset);
+  }, [showCallerInfoModal, panelPosition, panelOffset, isAudioOnlyCall]);
+
+  const callerInfoDefaultPos = useMemo(() => {
+    const center = computePanelPos("center", 540, 480, panelOffset);
+    if ((callState === "incoming" || callState === "active" || callState === "ringing") && showCallerInfoModal) {
+      const otherWidth = callState === "incoming" ? 320 : (isAudioOnlyCall ? 320 : 360);
+      const shiftRight = (otherWidth + 16) / 2;
+      return { x: Math.min(window.innerWidth - 550, center.x + shiftRight), y: center.y - 40 };
+    }
+    return center;
+  }, [callState, showCallerInfoModal, panelOffset, isAudioOnlyCall]);
 
   // Sync recording config to useSIP whenever settings change
   useEffect(() => {
@@ -1768,13 +1780,15 @@ export default function Softphone({
                             </div>
 
                             <div className="sp-form-group">
-                              <label className="sp-form-label">Mobile Number</label>
+                              <label className="sp-form-label">Age</label>
                               <input
-                                type="text"
+                                type="number"
                                 className="sp-form-input"
-                                value={callerInfoMobileNumber}
-                                disabled
-                                readOnly
+                                placeholder="Enter age"
+                                min="0"
+                                max="120"
+                                value={callerInfoForm.age}
+                                onChange={(e) => setCallerInfoForm(f => ({ ...f, age: e.target.value }))}
                               />
                             </div>
 
@@ -1793,15 +1807,13 @@ export default function Softphone({
                             </div>
 
                             <div className="sp-form-group">
-                              <label className="sp-form-label">Age</label>
+                              <label className="sp-form-label">Mobile Number</label>
                               <input
-                                type="number"
+                                type="text"
                                 className="sp-form-input"
-                                placeholder="Enter age"
-                                min="0"
-                                max="120"
-                                value={callerInfoForm.age}
-                                onChange={(e) => setCallerInfoForm(f => ({ ...f, age: e.target.value }))}
+                                value={callerInfoMobileNumber}
+                                disabled
+                                readOnly
                               />
                             </div>
 
@@ -2424,12 +2436,7 @@ export default function Softphone({
               nodeRef={videoNodeRef}
               handle=".sp-panel-header"
               bounds="parent"
-              defaultPosition={computePanelPos(
-                panelPosition,
-                360,
-                320,
-                panelOffset,
-              )}
+              defaultPosition={videoDefaultPos}
             >
               <div
                 ref={videoNodeRef}
@@ -3548,13 +3555,15 @@ export default function Softphone({
                       </div>
 
                       <div className="sp-form-group">
-                        <label className="sp-form-label">Mobile Number</label>
+                        <label className="sp-form-label">Age</label>
                         <input
-                          type="text"
+                          type="number"
                           className="sp-form-input"
-                          value={callerInfoMobileNumber}
-                          disabled
-                          readOnly
+                          placeholder="Enter age"
+                          min="0"
+                          max="120"
+                          value={callerInfoForm.age}
+                          onChange={(e) => setCallerInfoForm(f => ({ ...f, age: e.target.value }))}
                         />
                       </div>
 
@@ -3573,15 +3582,13 @@ export default function Softphone({
                       </div>
 
                       <div className="sp-form-group">
-                        <label className="sp-form-label">Age</label>
+                        <label className="sp-form-label">Mobile Number</label>
                         <input
-                          type="number"
+                          type="text"
                           className="sp-form-input"
-                          placeholder="Enter age"
-                          min="0"
-                          max="120"
-                          value={callerInfoForm.age}
-                          onChange={(e) => setCallerInfoForm(f => ({ ...f, age: e.target.value }))}
+                          value={callerInfoMobileNumber}
+                          disabled
+                          readOnly
                         />
                       </div>
 
