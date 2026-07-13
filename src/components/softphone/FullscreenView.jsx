@@ -158,7 +158,7 @@ export default function FullscreenView({
           <div className="sp-fs-col-title">Dialer</div>
 
           {/* Incoming call banner */}
-          {callState === "incoming" && callerData && ariChannelActive && (
+          {callState === "incoming" && (
             <div className="sp-fs-incoming">
               <div className="sp-incoming-avatar" style={{ margin: "0 auto 12px" }}>
                 {callerData?.avatar ? (
@@ -174,17 +174,17 @@ export default function FullscreenView({
                   incomingSession?.remoteIdentity?.uri?.user ||
                   "Unknown"}
               </p>
-              {ariCallType && (
+              {!checkingAri && (
                 <div style={{ marginTop: 6, display: "flex", justifyContent: "center" }}>
-                  {ariCallType === "VIDEO" ? (
-                    <span className="sp-call-type-badge video-badge">
-                      <Video size={12} style={{ marginRight: 4 }} /> Video Call
-                    </span>
-                  ) : ariCallType === "AUDIO" ? (
+                  {ariCallType === "AUDIO" || isGoIpCall || (!ariCallType && !sdpHasVideo) ? (
                     <span className="sp-call-type-badge audio-badge">
                       <Phone size={12} style={{ marginRight: 4 }} /> Audio Call
                     </span>
-                  ) : null}
+                  ) : (
+                    <span className="sp-call-type-badge video-badge">
+                      <Video size={12} style={{ marginRight: 4 }} /> Video Call
+                    </span>
+                  )}
                 </div>
               )}
               {callerData?.address && (
@@ -285,7 +285,7 @@ export default function FullscreenView({
                   </div>
                 </div>
                 <div style={{ fontSize: "1.8rem", fontWeight: "700", marginBottom: "8px", color: "#f8fafc", letterSpacing: "0.5px" }}>
-                  {callerData?.name || dialInput || "Citizen"}
+                  {callerData?.name || dialInput || "Unknown"}
                 </div>
                 {callerData?.address && (
                   <div style={{ fontSize: "1rem", opacity: 0.8, color: "#94a3b8", marginBottom: "20px", maxWidth: "400px", lineHeight: "1.4" }}>
@@ -333,7 +333,7 @@ export default function FullscreenView({
                       )}
                     </div>
                     <div style={{ fontSize: "1.2rem", fontWeight: "bold", marginBottom: 4, color: "#e2e8f0" }}>
-                      {callerData?.name || dialInput || "Citizen"}
+                      {callerData?.name || dialInput || "Unknown"}
                     </div>
                     {callerData?.address && (
                       <div style={{ fontSize: "0.85rem", opacity: 0.8, marginBottom: 16 }}>

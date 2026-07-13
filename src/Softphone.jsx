@@ -1102,7 +1102,7 @@ export default function Softphone({
         )}
 
         {/* Draggable Incoming Call Panel */}
-        {callState === "incoming" && callerData && ariChannelActive && (
+        {callState === "incoming" && (
           <IncomingCallPanel
             nodeRef={incomingNodeRef}
             defaultPosition={incomingDefaultPos}

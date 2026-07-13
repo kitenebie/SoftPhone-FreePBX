@@ -73,7 +73,7 @@ export default function VideoPanel({
   setRemoteVideoLoaded,
   videoSize,
 }) {
-  const callerDisplay = callerData?.name || dialInput || "Citizen";
+  const callerDisplay = callerData?.name || dialInput || "Unknown";
 
   // Confirm close state for callback overlay
   const [confirmClose, setConfirmClose] = useState(false);
