@@ -1,0 +1,262 @@
+import Draggable from "react-draggable";
+import {
+  GripHorizontal,
+  Maximize2,
+  Minimize2,
+  Mic,
+  MicOff,
+  PhoneOff,
+  Video,
+  VideoOff,
+  User,
+  Phone,
+  Loader,
+} from "lucide-react";
+
+/**
+ * VideoPanel — draggable + resizable panel for active / ringing calls.
+ * Renders an audio-only view or a video view based on `isAudioOnlyCall`.
+ *
+ * Props:
+ *   nodeRef              React ref
+ *   defaultPosition      { x, y }
+ *   callState            string
+ *   isAudioOnlyCall      boolean
+ *   expanded             boolean
+ *   setExpanded          fn
+ *   callerData           object | null
+ *   dialInput            string
+ *   remoteVideoRef       React ref
+ *   localVideoRef        React ref
+ *   muted                boolean
+ *   videoMuted           boolean
+ *   onMute               () => void
+ *   onVideoMute          () => void
+ *   onHangup             () => void
+ *   remoteVideoLoaded    boolean
+ *   setRemoteVideoLoaded fn
+ *   videoSize            { size: { w, h }, onResizeStart }
+ */
+export default function VideoPanel({
+  nodeRef,
+  defaultPosition,
+  callState,
+  isAudioOnlyCall,
+  expanded,
+  setExpanded,
+  callerData,
+  dialInput,
+  remoteVideoRef,
+  localVideoRef,
+  muted,
+  videoMuted,
+  onMute,
+  onVideoMute,
+  onHangup,
+  remoteVideoLoaded,
+  setRemoteVideoLoaded,
+  videoSize,
+}) {
+  const callerDisplay = callerData?.name || dialInput || "Citizen";
+
+  return (
+    <Draggable
+      nodeRef={nodeRef}
+      handle=".sp-panel-header"
+      bounds="parent"
+      defaultPosition={defaultPosition}
+    >
+      <div
+        ref={nodeRef}
+        className={`sp-video-panel ${expanded ? "sp-video-expanded" : ""}`}
+        style={
+          expanded
+            ? {}
+            : isAudioOnlyCall
+              ? { width: "320px", height: "460px" }
+              : { width: `${videoSize.size.w}px`, height: `${videoSize.size.h}px` }
+        }
+      >
+        <div className="sp-panel-inner">
+          {/* Header */}
+          <div className="sp-panel-header">
+            <GripHorizontal size={14} />
+            <span>{callState === "ringing" ? "Calling..." : "On Call"}</span>
+            <div
+              className={`sp-call-dot ${callState === "active" ? "active" : "ringing"}`}
+            />
+            {!isAudioOnlyCall && (
+              <button
+                className="sp-icon-btn"
+                onClick={() => setExpanded((e) => !e)}
+                style={{ marginLeft: "auto" }}
+              >
+                {expanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              </button>
+            )}
+          </div>
+
+          {/* Body — audio-only */}
+          {isAudioOnlyCall ? (
+            <div
+              className="sp-video-wrap sp-audio-call-wrap"
+              style={{
+                minHeight: "380px",
+                background: "radial-gradient(circle at center, #1e1e38 0%, #0a0a14 100%)",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                className="sp-audio-call-container"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flex: 1,
+                  padding: "24px",
+                  textAlign: "center",
+                }}
+              >
+                {/* Glowing avatar */}
+                <div className="sp-audio-avatar-wrap" style={{ position: "relative", marginBottom: "20px" }}>
+                  <div
+                    className="sp-audio-avatar-glow"
+                    style={{
+                      position: "absolute",
+                      inset: "-8px",
+                      borderRadius: "50%",
+                      background: "rgba(79, 70, 229, 0.25)",
+                      filter: "blur(12px)",
+                      animation: callState === "active" ? "pulseGlow 2s infinite" : "none",
+                    }}
+                  />
+                  <div
+                    className="sp-incoming-avatar"
+                    style={{
+                      margin: "0",
+                      width: 100,
+                      height: 100,
+                      border: "2px solid rgba(129, 140, 248, 0.6)",
+                      background: "rgba(79, 70, 229, 0.1)",
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                      animation: callState === "ringing" ? "ring 1.2s ease infinite" : "none",
+                    }}
+                  >
+                    {callerData?.avatar ? (
+                      <img
+                        src={callerData.avatar}
+                        alt="Citizen"
+                        style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                      />
+                    ) : (
+                      <User size={48} style={{ color: "#818cf8" }} />
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ fontSize: "1.4rem", fontWeight: "700", marginBottom: "6px", color: "#f8fafc", letterSpacing: "0.5px" }}>
+                  {callerDisplay}
+                </div>
+                {callerData?.address && (
+                  <div style={{ fontSize: "0.9rem", opacity: 0.8, color: "#94a3b8", marginBottom: "16px", maxWidth: "280px", lineHeight: "1.4" }}>
+                    {callerData.address}
+                  </div>
+                )}
+                {callState === "ringing" ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#facc15", fontSize: "0.95rem", fontWeight: "500", background: "rgba(250, 204, 21, 0.1)", padding: "6px 16px", borderRadius: "20px" }}>
+                    <Loader size={16} className="spin" />
+                    <span>Calling...</span>
+                  </div>
+                ) : (
+                  <div style={{ color: "#4ade80", fontSize: "0.95rem", fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", background: "rgba(74, 222, 128, 0.1)", padding: "4px 12px", borderRadius: "12px" }}>
+                    Ongoing Call
+                  </div>
+                )}
+              </div>
+
+              {/* Audio controls */}
+              <div className="sp-call-controls sp-audio-call-controls" style={{ background: "transparent", padding: "24px 20px 28px" }}>
+                <button
+                  className={`sp-ctrl-btn ${muted ? "active" : ""}`}
+                  onClick={onMute}
+                  style={{ width: "48px", height: "48px" }}
+                  title={muted ? "Unmute Mic" : "Mute Mic"}
+                >
+                  {muted ? <MicOff size={20} /> : <Mic size={20} />}
+                </button>
+                <button
+                  className="sp-ctrl-btn sp-ctrl-hangup"
+                  onClick={onHangup}
+                  style={{ width: "56px", height: "56px", boxShadow: "0 8px 20px rgba(239, 68, 68, 0.4)" }}
+                  title="Hang Up"
+                >
+                  <PhoneOff size={22} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Body — video */
+            <div className="sp-video-wrap">
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className="sp-video-remote"
+                onLoadedData={() => setRemoteVideoLoaded(true)}
+              />
+              {!videoMuted && (
+                <video ref={localVideoRef} autoPlay playsInline muted className="sp-video-local" />
+              )}
+              {(callState === "ringing" || (callState === "active" && !remoteVideoLoaded)) && (
+                <div className="sp-video-placeholder" style={{ flexDirection: "column", padding: "20px", textAlign: "center" }}>
+                  <div className="sp-incoming-avatar" style={{ margin: "0 auto 12px", width: 80, height: 80 }}>
+                    {callerData?.avatar ? (
+                      <img src={callerData.avatar} alt="Citizen" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+                    ) : (
+                      <User size={36} />
+                    )}
+                  </div>
+                  <div style={{ fontSize: "1.2rem", fontWeight: "bold", marginBottom: 4, color: "#e2e8f0" }}>
+                    {callerDisplay}
+                  </div>
+                  {callerData?.address && (
+                    <div style={{ fontSize: "0.85rem", opacity: 0.8, marginBottom: 16 }}>
+                      Address: {callerData.address}
+                    </div>
+                  )}
+                  {callState === "ringing" ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.8, color: "#cbd5e1" }}>
+                      <Loader size={18} className="spin" />
+                      <span>Calling...</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.8, color: "#cbd5e1" }}>
+                      <Phone size={18} />
+                      <span>In Call</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="sp-call-controls">
+                <button className={`sp-ctrl-btn ${muted ? "active" : ""}`} onClick={onMute}>
+                  {muted ? <MicOff size={16} /> : <Mic size={16} />}
+                </button>
+                <button className="sp-ctrl-btn sp-ctrl-hangup" onClick={onHangup}>
+                  <PhoneOff size={18} />
+                </button>
+                <button className={`sp-ctrl-btn ${videoMuted ? "active" : ""}`} onClick={onVideoMute}>
+                  {videoMuted ? <VideoOff size={16} /> : <Video size={16} />}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        {!expanded && !isAudioOnlyCall && (
+          <div className="sp-resize-handle" onMouseDown={videoSize.onResizeStart} />
+        )}
+      </div>
+    </Draggable>
+  );
+}
