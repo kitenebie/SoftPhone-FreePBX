@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Draggable from "react-draggable";
 import {
   GripHorizontal,
@@ -10,12 +11,17 @@ import {
   VideoOff,
   User,
   Phone,
+  PhoneCall,
+  PhoneForwarded,
+  Pause,
+  Play,
   Loader,
+  X,
 } from "lucide-react";
 
 /**
  * VideoPanel — draggable + resizable panel for active / ringing calls.
- * Renders an audio-only view or a video view based on `isAudioOnlyCall`.
+ * Also shows a "Call Back" overlay after a call ends.
  *
  * Props:
  *   nodeRef              React ref
@@ -33,6 +39,11 @@ import {
  *   onMute               () => void
  *   onVideoMute          () => void
  *   onHangup             () => void
+ *   held                 boolean
+ *   onHold               () => void
+ *   lastCallInfo         { number, name, wasVideo } | null
+ *   onCallback           (number, video) => void
+ *   onDismissCallback    () => void
  *   remoteVideoLoaded    boolean
  *   setRemoteVideoLoaded fn
  *   videoSize            { size: { w, h }, onResizeStart }
@@ -53,12 +64,217 @@ export default function VideoPanel({
   onMute,
   onVideoMute,
   onHangup,
+  held,
+  onHold,
+  lastCallInfo,
+  onCallback,
+  onDismissCallback,
   remoteVideoLoaded,
   setRemoteVideoLoaded,
   videoSize,
 }) {
   const callerDisplay = callerData?.name || dialInput || "Citizen";
 
+  // Confirm close state for callback overlay
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  // ── Callback Overlay (shown after call ends) ──
+  if (callState === "idle" && lastCallInfo) {
+    return (
+      <Draggable
+        nodeRef={nodeRef}
+        handle=".sp-panel-header"
+        bounds="parent"
+        defaultPosition={defaultPosition}
+      >
+        <div
+          ref={nodeRef}
+          className="sp-video-panel"
+          style={{ width: "320px", height: "auto", minHeight: "280px" }}
+        >
+          <div className="sp-panel-inner">
+            {/* Header */}
+            <div className="sp-panel-header">
+              <GripHorizontal size={14} />
+              <span>Call Ended</span>
+              <button
+                className="sp-icon-btn"
+                onClick={() => {
+                  if (confirmClose) {
+                    setConfirmClose(false);
+                    onDismissCallback();
+                  } else {
+                    setConfirmClose(true);
+                  }
+                }}
+                style={{ marginLeft: "auto" }}
+                title="Dismiss"
+              >
+                <X size={13} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div
+              className="sp-video-wrap sp-audio-call-wrap"
+              style={{
+                minHeight: "220px",
+                background: "radial-gradient(circle at center, #1e1e38 0%, #0a0a14 100%)",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flex: 1,
+                  padding: "24px",
+                  textAlign: "center",
+                }}
+              >
+                {/* Avatar */}
+                <div style={{ position: "relative", marginBottom: "16px" }}>
+                  <div
+                    className="sp-incoming-avatar"
+                    style={{
+                      margin: "0",
+                      width: 72,
+                      height: 72,
+                      border: "2px solid rgba(129, 140, 248, 0.4)",
+                      background: "rgba(79, 70, 229, 0.1)",
+                    }}
+                  >
+                    <User size={36} style={{ color: "#818cf8" }} />
+                  </div>
+                </div>
+
+                <div style={{ fontSize: "1.2rem", fontWeight: "700", marginBottom: "4px", color: "#f8fafc" }}>
+                  {lastCallInfo.name || lastCallInfo.number}
+                </div>
+                {lastCallInfo.name && (
+                  <div style={{ fontSize: "0.85rem", opacity: 0.7, color: "#94a3b8", marginBottom: "12px" }}>
+                    {lastCallInfo.number}
+                  </div>
+                )}
+
+                <div style={{ color: "#ef4444", fontSize: "0.85rem", fontWeight: "500", marginBottom: "20px", background: "rgba(239, 68, 68, 0.1)", padding: "4px 12px", borderRadius: "12px" }}>
+                  Call Ended
+                </div>
+
+                {/* Callback Buttons */}
+                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+                  <button
+                    className="sp-ctrl-btn"
+                    onClick={() => onCallback(lastCallInfo.number, false)}
+                    style={{
+                      width: "auto",
+                      height: "auto",
+                      padding: "10px 18px",
+                      borderRadius: "24px",
+                      background: "rgba(74, 222, 128, 0.15)",
+                      border: "1px solid rgba(74, 222, 128, 0.4)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#4ade80",
+                      fontSize: "0.85rem",
+                      fontWeight: "600",
+                    }}
+                    title="Call Back (Audio)"
+                  >
+                    <PhoneForwarded size={16} />
+                    <span>Call Back</span>
+                  </button>
+
+                  <button
+                    className="sp-ctrl-btn"
+                    onClick={() => onCallback(lastCallInfo.number, true)}
+                    style={{
+                      width: "auto",
+                      height: "auto",
+                      padding: "10px 18px",
+                      borderRadius: "24px",
+                      background: "rgba(129, 140, 248, 0.15)",
+                      border: "1px solid rgba(129, 140, 248, 0.4)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#818cf8",
+                      fontSize: "0.85rem",
+                      fontWeight: "600",
+                    }}
+                    title="Call Back (Video)"
+                  >
+                    <Video size={16} />
+                    <span>Video Call</span>
+                  </button>
+                </div>
+
+                {/* Confirm close prompt */}
+                {confirmClose && (
+                  <div
+                    style={{
+                      position: "fixed",
+                      inset: 0,
+                      zIndex: 99999,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "rgba(0, 0, 0, 0.6)",
+                      backdropFilter: "blur(4px)",
+                    }}
+                    onClick={() => setConfirmClose(false)}
+                  >
+                    <div
+                      style={{
+                        background: "#1e1e2e",
+                        border: "1px solid rgba(129, 140, 248, 0.3)",
+                        borderRadius: "16px",
+                        padding: "28px 32px",
+                        textAlign: "center",
+                        boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+                        maxWidth: "300px",
+                        width: "90%",
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div style={{ fontSize: "1rem", fontWeight: "600", color: "#f8fafc", marginBottom: "8px" }}>
+                        Close Callback?
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "#94a3b8", marginBottom: "24px" }}>
+                        Do you want to close this panel?
+                      </div>
+                      <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                        <button
+                          className="sp-ctrl-btn"
+                          onClick={() => { setConfirmClose(false); onDismissCallback(); }}
+                          style={{ width: "auto", height: "auto", padding: "10px 24px", borderRadius: "20px", background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.4)", color: "#ef4444", fontSize: "0.85rem", fontWeight: "600", cursor: "pointer" }}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          className="sp-ctrl-btn"
+                          onClick={() => setConfirmClose(false)}
+                          style={{ width: "auto", height: "auto", padding: "10px 24px", borderRadius: "20px", background: "rgba(148, 163, 184, 0.1)", border: "1px solid rgba(148, 163, 184, 0.3)", color: "#94a3b8", fontSize: "0.85rem", fontWeight: "600", cursor: "pointer" }}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Draggable>
+    );
+  }
+
+  // ── Active / Ringing Call Panel ──
   return (
     <Draggable
       nodeRef={nodeRef}
@@ -81,9 +297,11 @@ export default function VideoPanel({
           {/* Header */}
           <div className="sp-panel-header">
             <GripHorizontal size={14} />
-            <span>{callState === "ringing" ? "Calling..." : "On Call"}</span>
+            <span>
+              {callState === "ringing" ? "Calling..." : held ? "On Hold" : "On Call"}
+            </span>
             <div
-              className={`sp-call-dot ${callState === "active" ? "active" : "ringing"}`}
+              className={`sp-call-dot ${held ? "hold" : callState === "active" ? "active" : "ringing"}`}
             />
             {!isAudioOnlyCall && (
               <button
@@ -127,9 +345,9 @@ export default function VideoPanel({
                       position: "absolute",
                       inset: "-8px",
                       borderRadius: "50%",
-                      background: "rgba(79, 70, 229, 0.25)",
+                      background: held ? "rgba(250, 204, 21, 0.25)" : "rgba(79, 70, 229, 0.25)",
                       filter: "blur(12px)",
-                      animation: callState === "active" ? "pulseGlow 2s infinite" : "none",
+                      animation: held ? "none" : callState === "active" ? "pulseGlow 2s infinite" : "none",
                     }}
                   />
                   <div
@@ -138,8 +356,8 @@ export default function VideoPanel({
                       margin: "0",
                       width: 100,
                       height: 100,
-                      border: "2px solid rgba(129, 140, 248, 0.6)",
-                      background: "rgba(79, 70, 229, 0.1)",
+                      border: held ? "2px solid rgba(250, 204, 21, 0.6)" : "2px solid rgba(129, 140, 248, 0.6)",
+                      background: held ? "rgba(250, 204, 21, 0.1)" : "rgba(79, 70, 229, 0.1)",
                       boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
                       animation: callState === "ringing" ? "ring 1.2s ease infinite" : "none",
                     }}
@@ -151,7 +369,7 @@ export default function VideoPanel({
                         style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
                       />
                     ) : (
-                      <User size={48} style={{ color: "#818cf8" }} />
+                      <User size={48} style={{ color: held ? "#facc15" : "#818cf8" }} />
                     )}
                   </div>
                 </div>
@@ -168,6 +386,11 @@ export default function VideoPanel({
                   <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#facc15", fontSize: "0.95rem", fontWeight: "500", background: "rgba(250, 204, 21, 0.1)", padding: "6px 16px", borderRadius: "20px" }}>
                     <Loader size={16} className="spin" />
                     <span>Calling...</span>
+                  </div>
+                ) : held ? (
+                  <div style={{ color: "#facc15", fontSize: "0.95rem", fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", background: "rgba(250, 204, 21, 0.1)", padding: "4px 12px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Pause size={14} />
+                    On Hold
                   </div>
                 ) : (
                   <div style={{ color: "#4ade80", fontSize: "0.95rem", fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", background: "rgba(74, 222, 128, 0.1)", padding: "4px 12px", borderRadius: "12px" }}>
@@ -186,6 +409,24 @@ export default function VideoPanel({
                 >
                   {muted ? <MicOff size={20} /> : <Mic size={20} />}
                 </button>
+
+                {/* Hold Button */}
+                {callState === "active" && (
+                  <button
+                    className={`sp-ctrl-btn ${held ? "active" : ""}`}
+                    onClick={onHold}
+                    style={{
+                      width: "48px",
+                      height: "48px",
+                      background: held ? "rgba(250, 204, 21, 0.2)" : undefined,
+                      borderColor: held ? "rgba(250, 204, 21, 0.5)" : undefined,
+                    }}
+                    title={held ? "Resume Call" : "Hold Call"}
+                  >
+                    {held ? <Play size={20} /> : <Pause size={20} />}
+                  </button>
+                )}
+
                 <button
                   className="sp-ctrl-btn sp-ctrl-hangup"
                   onClick={onHangup}
@@ -239,10 +480,49 @@ export default function VideoPanel({
                   )}
                 </div>
               )}
+
+              {/* Hold overlay for video calls */}
+              {held && callState === "active" && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: "rgba(0, 0, 0, 0.75)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 10,
+                    borderRadius: "inherit",
+                  }}
+                >
+                  <Pause size={48} style={{ color: "#facc15", marginBottom: "12px" }} />
+                  <div style={{ color: "#facc15", fontSize: "1.1rem", fontWeight: "600" }}>
+                    Call On Hold
+                  </div>
+                </div>
+              )}
+
               <div className="sp-call-controls">
                 <button className={`sp-ctrl-btn ${muted ? "active" : ""}`} onClick={onMute}>
                   {muted ? <MicOff size={16} /> : <Mic size={16} />}
                 </button>
+
+                {/* Hold Button for video calls */}
+                {callState === "active" && (
+                  <button
+                    className={`sp-ctrl-btn ${held ? "active" : ""}`}
+                    onClick={onHold}
+                    style={{
+                      background: held ? "rgba(250, 204, 21, 0.2)" : undefined,
+                      borderColor: held ? "rgba(250, 204, 21, 0.5)" : undefined,
+                    }}
+                    title={held ? "Resume Call" : "Hold Call"}
+                  >
+                    {held ? <Play size={16} /> : <Pause size={16} />}
+                  </button>
+                )}
+
                 <button className="sp-ctrl-btn sp-ctrl-hangup" onClick={onHangup}>
                   <PhoneOff size={18} />
                 </button>

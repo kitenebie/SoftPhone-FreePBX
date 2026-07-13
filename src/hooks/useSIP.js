@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { UserAgent, Registerer, Inviter, SessionState } from "sip.js";
+
 import incomingRingtone from "../assets/ringtones/incoming_call.mp3";
 import endCallSound    from "../assets/ringtones/end_call.mp3";
 
@@ -11,6 +12,7 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
   const [callState,       setCallState]       = useState("idle");
   const [incomingSession, setIncomingSession] = useState(null);
   const [error,           setError]           = useState(null);
+  const [held,            setHeld]            = useState(false);
   const [reconnecting,    setReconnecting]    = useState(false);
 
   const uaRef             = useRef(null);
@@ -308,6 +310,7 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
       } else if (state === SessionState.Terminated) {
         stopRecording();
         playEnd();
+        setHeld(false);
         S.current.callState("idle");
         S.current.incomingSession(null);
         sessionRef.current = null;
@@ -499,6 +502,7 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
   function hangup() {
     const s = sessionRef.current;
     if (!s) return;
+    setHeld(false);
     stopRecording();
     playEnd();
     try {
@@ -554,10 +558,31 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
     }
   }
 
+  function hold(shouldHold) {
+    const session = sessionRef.current;
+    if (!session || session.state !== SessionState.Established) return;
+
+    const pc = session.sessionDescriptionHandler?.peerConnection;
+    if (!pc) return;
+
+    try {
+      pc.getSenders().forEach((sender) => {
+        if (sender.track) sender.track.enabled = !shouldHold;
+      });
+      pc.getReceivers().forEach((receiver) => {
+        if (receiver.track) receiver.track.enabled = !shouldHold;
+      });
+      setHeld(shouldHold);
+      console.log(`[KSIP Log] Call ${shouldHold ? "held" : "resumed"}`);
+    } catch (err) {
+      console.error("[KSIP Log] Hold/resume failed:", err);
+    }
+  }
+
   return {
-    registered, callState, incomingSession, error, reconnecting,
+    registered, callState, incomingSession, error, reconnecting, held,
     localVideoRef, remoteVideoRef, remoteAudioRef,
-    call, answer, hangup, mute, toggleVideo,
+    call, answer, hangup, mute, toggleVideo, hold,
     setRecordingConfig, setDirectoryHandle,
   };
 }

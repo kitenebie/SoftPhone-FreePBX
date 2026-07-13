@@ -163,7 +163,12 @@ body {
   animation: pulse 1s infinite;
 }
 
-/* ── Video ───────────────────────────────────────────────────── */
+.sp-call-dot.hold {
+  background: #facc15;
+  box-shadow: 0 0 6px #facc15;
+}
+
+/* ── Video ──────────────────────────────────── */
 .sp-video-wrap {
   position: relative;
   background: #000;

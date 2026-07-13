@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Draggable from "react-draggable";
 import {
   Wifi,
@@ -21,6 +21,10 @@ import {
   Mic,
   MicOff,
   GripHorizontal,
+  Pause,
+  Play,
+  PhoneForwarded,
+  PhoneCall,
   SlidersHorizontal,
 } from "lucide-react";
 import ToggleRow from "./ToggleRow";
@@ -52,6 +56,11 @@ export default function FullscreenView({
   hangup,
   safeCall,
   safeAnswer,
+  held,
+  onHold,
+  lastCallInfo,
+  onCallback,
+  onDismissCallback,
   incomingSession,
   remoteVideoRef,
   localVideoRef,
@@ -297,6 +306,11 @@ export default function FullscreenView({
                 <button className={`sp-ctrl-btn ${muted ? "active" : ""}`} onClick={handleMute} style={{ width: "56px", height: "56px" }} title={muted ? "Unmute Mic" : "Mute Mic"}>
                   {muted ? <MicOff size={22} /> : <Mic size={22} />}
                 </button>
+                {callState === "active" && (
+                  <button className={`sp-ctrl-btn ${held ? "active" : ""}`} onClick={onHold} style={{ width: "56px", height: "56px", background: held ? "rgba(250, 204, 21, 0.2)" : undefined, borderColor: held ? "rgba(250, 204, 21, 0.5)" : undefined }} title={held ? "Resume Call" : "Hold Call"}>
+                    {held ? <Play size={22} /> : <Pause size={22} />}
+                  </button>
+                )}
                 <button className="sp-ctrl-btn sp-ctrl-hangup" onClick={hangup} style={{ width: "64px", height: "64px", boxShadow: "0 8px 24px rgba(239, 68, 68, 0.4)" }} title="Hang Up">
                   <PhoneOff size={26} />
                 </button>
@@ -348,6 +362,11 @@ export default function FullscreenView({
                   <button className={`sp-ctrl-btn ${muted ? "active" : ""}`} onClick={handleMute}>
                     {muted ? <MicOff size={16} /> : <Mic size={16} />}
                   </button>
+                  {callState === "active" && (
+                    <button className={`sp-ctrl-btn ${held ? "active" : ""}`} onClick={onHold} style={{ background: held ? "rgba(250, 204, 21, 0.2)" : undefined, borderColor: held ? "rgba(250, 204, 21, 0.5)" : undefined }} title={held ? "Resume Call" : "Hold Call"}>
+                      {held ? <Play size={16} /> : <Pause size={16} />}
+                    </button>
+                  )}
                   <button className="sp-ctrl-btn sp-ctrl-hangup" onClick={hangup}>
                     <PhoneOff size={18} />
                   </button>

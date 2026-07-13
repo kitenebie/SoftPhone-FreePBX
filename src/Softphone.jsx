@@ -191,6 +191,8 @@ export default function Softphone({
   const [callHasVideo, setCallHasVideo] = useState(true);
 
   // ── ARI state ───────────────────────────────────────────────────────────────
+  const [lastCallInfo, setLastCallInfo] = useState(null); // { number, name, wasVideo }
+
   const [ariGoIpDetected, setAriGoIpDetected] = useState(false);
   const [checkingAri, setCheckingAri] = useState(false);
   const [ariChannelActive, setAriChannelActive] = useState(false);
@@ -246,6 +248,8 @@ export default function Softphone({
     hangup,
     mute,
     toggleVideo,
+    hold,
+    held,
     setRecordingConfig,
     setDirectoryHandle,
   } = useSIP(sipConfig);
@@ -630,11 +634,22 @@ export default function Softphone({
   // Reset on idle
   useEffect(() => {
     if (callState === "idle") {
+      // Capture last call info for callback before resetting
+      if (dialInput || callerData) {
+        const number = dialInput || incomingSession?.remoteIdentity?.uri?.user || "";
+        if (number) {
+          setLastCallInfo({
+            number,
+            name: callerData?.name || "",
+            wasVideo: callHasVideo && !isAudioOnlyCall,
+          });
+        }
+      }
       setCallHasVideo(true);
       setAriCallType(null);
       setDialInput("");
     }
-  }, [callState]);
+  }, [callState, dialInput, callerData, callHasVideo, isAudioOnlyCall, incomingSession]);
 
   // Sync recording config
   useEffect(() => {
@@ -979,6 +994,14 @@ export default function Softphone({
         hangup={hangup}
         safeCall={safeCall}
         safeAnswer={safeAnswer}
+        held={held}
+        onHold={() => hold(!held)}
+        lastCallInfo={lastCallInfo}
+        onCallback={(number, video) => {
+          setLastCallInfo(null);
+          safeCall(number, video);
+        }}
+        onDismissCallback={() => setLastCallInfo(null)}
         incomingSession={incomingSession}
         remoteVideoRef={remoteVideoRef}
         localVideoRef={localVideoRef}
@@ -1075,7 +1098,7 @@ export default function Softphone({
         )}
 
         {/* Draggable + Resizable Video Panel */}
-        {(callState === "active" || callState === "ringing") && (
+        {(callState === "active" || callState === "ringing" || (callState === "idle" && lastCallInfo)) && (
           <VideoPanel
             nodeRef={videoNodeRef}
             defaultPosition={videoDefaultPos}
@@ -1092,6 +1115,14 @@ export default function Softphone({
             onMute={handleMute}
             onVideoMute={handleVideoMute}
             onHangup={hangup}
+            held={held}
+            onHold={() => hold(!held)}
+            lastCallInfo={lastCallInfo}
+            onCallback={(number, video) => {
+              setLastCallInfo(null);
+              safeCall(number, video);
+            }}
+            onDismissCallback={() => setLastCallInfo(null)}
             remoteVideoLoaded={remoteVideoLoaded}
             setRemoteVideoLoaded={setRemoteVideoLoaded}
             videoSize={videoSize}
