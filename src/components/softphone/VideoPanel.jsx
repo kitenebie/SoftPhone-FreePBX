@@ -165,86 +165,90 @@ export default function VideoPanel({
                 </div>
 
                 {/* Callback Buttons */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
-                  {/* Green: Callback with leading 0 */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", alignItems: "center" }}>
+                  {/* 🟢 Green Phone: Callback with leading 0 prepended */}
                   <button
                     className="sp-ctrl-btn"
                     onClick={() => {
-                      const num = lastCallInfo.number.startsWith("0") ? lastCallInfo.number : "0" + lastCallInfo.number;
+                      const raw = lastCallInfo.number.replace(/^0+/, "");
+                      const num = "0" + raw;
                       onCallback(num, false);
                     }}
                     style={{
-                      width: "auto",
+                      width: "100%",
+                      maxWidth: "260px",
                       height: "auto",
-                      padding: "10px 16px",
-                      borderRadius: "20px",
+                      padding: "12px 16px",
+                      borderRadius: "12px",
                       background: "rgba(74, 222, 128, 0.15)",
                       border: "1px solid rgba(74, 222, 128, 0.4)",
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
+                      gap: "10px",
                       color: "#4ade80",
-                      fontSize: "0.8rem",
+                      fontSize: "0.82rem",
                       fontWeight: "600",
+                      cursor: "pointer",
                     }}
-                    title={`Callback 0${lastCallInfo.number.replace(/^0/, "")}`}
                   >
-                    <Phone size={16} />
-                    <span>Callback ({lastCallInfo.number.startsWith("0") ? lastCallInfo.number : "0" + lastCallInfo.number})</span>
+                    <Phone size={18} style={{ flexShrink: 0 }} />
+                    <span>Callback (0{lastCallInfo.number.replace(/^0+/, "")})</span>
                   </button>
 
-                  {/* Blue: Callback without leading 0 */}
+                  {/* 🔵 Blue Phone: Callback raw number (no added prefix) */}
                   <button
                     className="sp-ctrl-btn"
                     onClick={() => {
-                      const num = lastCallInfo.number.startsWith("0") ? lastCallInfo.number.slice(1) : lastCallInfo.number;
+                      const num = lastCallInfo.number.replace(/^0+/, "");
                       onCallback(num, false);
                     }}
                     style={{
-                      width: "auto",
+                      width: "100%",
+                      maxWidth: "260px",
                       height: "auto",
-                      padding: "10px 16px",
-                      borderRadius: "20px",
+                      padding: "12px 16px",
+                      borderRadius: "12px",
                       background: "rgba(129, 140, 248, 0.15)",
                       border: "1px solid rgba(129, 140, 248, 0.4)",
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
+                      gap: "10px",
                       color: "#818cf8",
-                      fontSize: "0.8rem",
+                      fontSize: "0.82rem",
                       fontWeight: "600",
+                      cursor: "pointer",
                     }}
-                    title={`Callback ${lastCallInfo.number.replace(/^0/, "")}`}
                   >
-                    <Phone size={16} />
-                    <span>Callback ({lastCallInfo.number.startsWith("0") ? lastCallInfo.number.slice(1) : lastCallInfo.number})</span>
+                    <Phone size={18} style={{ flexShrink: 0 }} />
+                    <span>Callback ({lastCallInfo.number.replace(/^0+/, "")})</span>
                   </button>
 
-                  {/* Blue: Video call without leading 0 */}
+                  {/* 🔵 Blue Video: Video Call raw number (no added prefix) */}
                   <button
                     className="sp-ctrl-btn"
                     onClick={() => {
-                      const num = lastCallInfo.number.startsWith("0") ? lastCallInfo.number.slice(1) : lastCallInfo.number;
+                      const num = lastCallInfo.number.replace(/^0+/, "");
                       onCallback(num, true);
                     }}
                     style={{
-                      width: "auto",
+                      width: "100%",
+                      maxWidth: "260px",
                       height: "auto",
-                      padding: "10px 16px",
-                      borderRadius: "20px",
+                      padding: "12px 16px",
+                      borderRadius: "12px",
                       background: "rgba(129, 140, 248, 0.15)",
                       border: "1px solid rgba(129, 140, 248, 0.4)",
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
+                      gap: "10px",
                       color: "#818cf8",
-                      fontSize: "0.8rem",
+                      fontSize: "0.82rem",
                       fontWeight: "600",
+                      cursor: "pointer",
                     }}
-                    title={`Video Call ${lastCallInfo.number.replace(/^0/, "")}`}
                   >
-                    <Video size={16} />
-                    <span>Video Call ({lastCallInfo.number.startsWith("0") ? lastCallInfo.number.slice(1) : lastCallInfo.number})</span>
+                    <Video size={18} style={{ flexShrink: 0 }} />
+                    <span>Video Call ({lastCallInfo.number.replace(/^0+/, "")})</span>
                   </button>
                 </div>
 

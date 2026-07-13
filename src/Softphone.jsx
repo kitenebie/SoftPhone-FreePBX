@@ -346,6 +346,7 @@ export default function Softphone({
       }
       setMediaError("");
       setCallHasVideo(video);
+      lastCallNumberRef.current = target;
       return call(target, video);
     },
     [call],
@@ -364,9 +365,12 @@ export default function Softphone({
       if (pendingCallerInfoModal) {
         setShowCallerInfoModal(true);
       }
+      // Capture caller number for callback
+      const callerNum = incomingSession?.remoteIdentity?.uri?.user || "";
+      if (callerNum) lastCallNumberRef.current = callerNum;
       return answer(video);
     },
-    [answer, pendingCallerInfoModal],
+    [answer, pendingCallerInfoModal, incomingSession],
   );
 
   // ── Handlers ────────────────────────────────────────────────────────────────
