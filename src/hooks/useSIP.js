@@ -362,12 +362,24 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
         },
       },
       delegate: {
-        onInvite(invitation) {
+      onInvite(invitation) {
           sessionRef.current = invitation;
           S.current.incomingSession(invitation);
           S.current.callState("incoming");
           playRing();
           wireSession(invitation);
+
+          // SDP-based video detection: check if the incoming INVITE has video
+          try {
+            const sdp = invitation.request?.body || invitation.body || "";
+            const hasVideoInSdp = /m=video\s+\d+/.test(sdp);
+            if (invitation._sdpHasVideo === undefined) {
+              invitation._sdpHasVideo = hasVideoInSdp;
+            }
+            console.log(`[KSIP Log] Incoming SDP video detected: ${hasVideoInSdp}`);
+          } catch (e) {
+            console.warn("[KSIP Log] SDP video detection failed:", e);
+          }
         },
         onDisconnect() {
           console.warn('[KSIP Log] PBX connection disconnected.');

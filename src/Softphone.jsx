@@ -192,6 +192,7 @@ export default function Softphone({
 
   // ── ARI state ───────────────────────────────────────────────────────────────
   const [lastCallInfo, setLastCallInfo] = useState(null); // { number, name, wasVideo }
+  const lastCallNumberRef = useRef(""); // tracks the remote number during the call
 
   const [ariGoIpDetected, setAriGoIpDetected] = useState(false);
   const [checkingAri, setCheckingAri] = useState(false);
@@ -293,8 +294,13 @@ export default function Softphone({
     );
   }, [ariGoIpDetected, callerData, incomingSession, dialInput]);
 
+  // SDP-based fallback: check if incomingSession has video in SDP
+  const sdpHasVideo = incomingSession?._sdpHasVideo ?? true; // default true if unknown
+
   const isAudioOnlyCall =
-    ariCallType === "AUDIO" || (ariCallType !== "VIDEO" && (!callHasVideo || isGoIpCall));
+    ariCallType === "AUDIO" ||
+    (ariCallType !== "VIDEO" && (!callHasVideo || isGoIpCall)) ||
+    (ariCallType === null && !sdpHasVideo);
 
   const incomingDefaultPos = useMemo(() => {
     const center = computePanelPos("center", 320, 320, panelOffset);
@@ -632,24 +638,31 @@ export default function Softphone({
   useEffect(() => { setMediaError(getMediaSecurityError()); }, []);
 
   // Reset on idle
+  // Track the remote number while in a call (before it gets cleared)
+  useEffect(() => {
+    if (callState === "incoming" || callState === "ringing" || callState === "active") {
+      const num = dialInput || incomingSession?.remoteIdentity?.uri?.user || "";
+      if (num) lastCallNumberRef.current = num;
+    }
+  }, [callState, dialInput, incomingSession]);
+
   useEffect(() => {
     if (callState === "idle") {
-      // Capture last call info for callback before resetting
-      if (dialInput || callerData) {
-        const number = dialInput || incomingSession?.remoteIdentity?.uri?.user || "";
-        if (number) {
-          setLastCallInfo({
-            number,
-            name: callerData?.name || "",
-            wasVideo: callHasVideo && !isAudioOnlyCall,
-          });
-        }
+      // Capture last call info for callback using the ref (not stale state)
+      const number = lastCallNumberRef.current;
+      if (number) {
+        setLastCallInfo({
+          number,
+          name: callerData?.name || "",
+          wasVideo: callHasVideo && !isAudioOnlyCall,
+        });
       }
+      lastCallNumberRef.current = "";
       setCallHasVideo(true);
       setAriCallType(null);
       setDialInput("");
     }
-  }, [callState, dialInput, callerData, callHasVideo, isAudioOnlyCall, incomingSession]);
+  }, [callState]);
 
   // Sync recording config
   useEffect(() => {
