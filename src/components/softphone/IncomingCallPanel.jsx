@@ -12,6 +12,7 @@ import { GripHorizontal, PhoneIncoming, Phone, Video, PhoneMissed } from "lucide
  *   ariCallType       'VIDEO' | 'AUDIO' | null
  *   checkingAri       boolean
  *   isGoIpCall        boolean
+ *   sdpHasVideo       boolean
  *   onAnswer          (video: boolean) => void
  *   onHangup          () => void
  */
@@ -23,6 +24,7 @@ export default function IncomingCallPanel({
   ariCallType,
   checkingAri,
   isGoIpCall,
+  sdpHasVideo,
   onAnswer,
   onHangup,
 }) {
@@ -31,6 +33,10 @@ export default function IncomingCallPanel({
     incomingSession?.remoteIdentity?.displayName ||
     incomingSession?.remoteIdentity?.uri?.user ||
     "Unknown";
+
+  // Determine if this is an audio-only call
+  // Priority: ARI CALL_TYPE > SDP detection > default (video)
+  const isAudioCall = ariCallType === "AUDIO" || isGoIpCall || (!ariCallType && !sdpHasVideo);
 
   return (
     <Draggable
@@ -59,17 +65,18 @@ export default function IncomingCallPanel({
             </div>
             <p className="sp-incoming-caller">{callerName}</p>
 
-            {ariCallType && (
+            {/* Call type badge */}
+            {!checkingAri && (
               <div style={{ marginTop: 8, display: "flex", justifyContent: "center" }}>
-                {ariCallType === "VIDEO" ? (
-                  <span className="sp-call-type-badge video-badge">
-                    <Video size={12} style={{ marginRight: 4 }} /> Video Call
-                  </span>
-                ) : ariCallType === "AUDIO" ? (
+                {isAudioCall ? (
                   <span className="sp-call-type-badge audio-badge">
                     <Phone size={12} style={{ marginRight: 4 }} /> Audio Call
                   </span>
-                ) : null}
+                ) : (
+                  <span className="sp-call-type-badge video-badge">
+                    <Video size={12} style={{ marginRight: 4 }} /> Video Call
+                  </span>
+                )}
               </div>
             )}
 
@@ -105,7 +112,7 @@ export default function IncomingCallPanel({
                   />
                   Verifying line...
                 </div>
-              ) : ariCallType === "AUDIO" || isGoIpCall ? (
+              ) : isAudioCall ? (
                 <button
                   className="sp-action-btn sp-action-answer"
                   onClick={() => onAnswer(false)}

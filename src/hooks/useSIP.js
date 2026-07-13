@@ -371,12 +371,19 @@ export function useSIP({ server, wsServer, extension, password, displayName, aud
 
           // SDP-based video detection: check if the incoming INVITE has video
           try {
-            const sdp = invitation.request?.body || invitation.body || "";
+            const sdp =
+              invitation.request?.body ||
+              invitation.body ||
+              invitation.incomingInviteRequest?.message?.body ||
+              "";
             const hasVideoInSdp = /m=video\s+\d+/.test(sdp);
+            // Also check if video port is 0 (disabled) — that means audio only
+            const videoPortZero = /m=video\s+0\s/.test(sdp);
+            const effectiveHasVideo = hasVideoInSdp && !videoPortZero;
             if (invitation._sdpHasVideo === undefined) {
-              invitation._sdpHasVideo = hasVideoInSdp;
+              invitation._sdpHasVideo = effectiveHasVideo;
             }
-            console.log(`[KSIP Log] Incoming SDP video detected: ${hasVideoInSdp}`);
+            console.log(`[KSIP Log] Incoming SDP video detected: ${effectiveHasVideo} (m=video found: ${hasVideoInSdp}, port=0: ${videoPortZero})`);
           } catch (e) {
             console.warn("[KSIP Log] SDP video detection failed:", e);
           }

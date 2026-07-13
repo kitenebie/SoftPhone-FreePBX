@@ -68,6 +68,7 @@ export default function FullscreenView({
   isAudioOnlyCall,
   ariCallType,
   ariChannelActive,
+  sdpHasVideo,
   checkingAri,
   isGoIpCall,
   remoteVideoLoaded,
@@ -198,7 +199,7 @@ export default function FullscreenView({
                     <div style={{ width: 14, height: 14, border: "2px solid #6366f1", borderTopColor: "transparent", borderRadius: "50%", animation: "spSpin 0.6s linear infinite" }} />
                     Verifying call line...
                   </div>
-                ) : ariCallType === "AUDIO" || isGoIpCall ? (
+                ) : ariCallType === "AUDIO" || isGoIpCall || (!ariCallType && !sdpHasVideo) ? (
                   <button className="sp-action-btn sp-action-answer" onClick={() => safeAnswer(false)} title="Answer Call">
                     <Phone size={18} />
                   </button>

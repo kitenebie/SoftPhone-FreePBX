@@ -1012,6 +1012,7 @@ export default function Softphone({
         lastCallInfo={lastCallInfo}
         onCallback={(number, video) => {
           setLastCallInfo(null);
+          setDialInput(number);
           safeCall(number, video);
         }}
         onDismissCallback={() => setLastCallInfo(null)}
@@ -1022,6 +1023,7 @@ export default function Softphone({
         isAudioOnlyCall={isAudioOnlyCall}
         ariCallType={ariCallType}
         ariChannelActive={ariChannelActive}
+        sdpHasVideo={sdpHasVideo}
         checkingAri={checkingAri}
         isGoIpCall={isGoIpCall}
         remoteVideoLoaded={remoteVideoLoaded}
@@ -1105,6 +1107,7 @@ export default function Softphone({
             ariCallType={ariCallType}
             checkingAri={checkingAri}
             isGoIpCall={isGoIpCall}
+            sdpHasVideo={sdpHasVideo}
             onAnswer={safeAnswer}
             onHangup={hangup}
           />
@@ -1133,6 +1136,7 @@ export default function Softphone({
             lastCallInfo={lastCallInfo}
             onCallback={(number, video) => {
               setLastCallInfo(null);
+              setDialInput(number);
               safeCall(number, video);
             }}
             onDismissCallback={() => setLastCallInfo(null)}
